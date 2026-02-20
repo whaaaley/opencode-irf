@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/assert@^1.0.13": "1.0.13",
+    "jsr:@std/async@^1.0.13": "1.1.1",
     "jsr:@std/cli@^1.0.21": "1.0.21",
     "jsr:@std/data-structures@^1.0.9": "1.0.9",
     "jsr:@std/fs@^1.0.19": "1.0.19",
@@ -20,6 +21,9 @@
       "dependencies": [
         "jsr:@std/internal@^1.0.6"
       ]
+    },
+    "@std/async@1.1.1": {
+      "integrity": "8a79beb3378cc229ce65ba2c746cfd03e4855ddd891d1eb6b9e32128e0d5339c"
     },
     "@std/cli@1.0.21": {
       "integrity": "cd25b050bdf6282e321854e3822bee624f07aca7636a3a76d95f77a3a919ca2a"
@@ -47,6 +51,7 @@
       "integrity": "a490169f5ccb0f3ae9c94fbc69d2cd43603f2cffb41713a85f99bbb0e3087cbc",
       "dependencies": [
         "jsr:@std/assert",
+        "jsr:@std/async",
         "jsr:@std/data-structures",
         "jsr:@std/fs",
         "jsr:@std/internal@^1.0.10",
