@@ -147,6 +147,11 @@
       "jsr:@std/testing@^1.0.15",
       "npm:@opencode-ai/plugin@1.1.12",
       "npm:zod@4.1.8"
-    ]
+    ],
+    "packageJson": {
+      "dependencies": [
+        "npm:zod@^4.1.8"
+      ]
+    }
   }
 }

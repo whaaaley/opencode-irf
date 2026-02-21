@@ -53,7 +53,7 @@ Rule: When an object literal or function has three or more fields or parameters,
 Reason: One or two fields on a single line is fine, but three or more becomes hard to scan and should be expanded for readability.
 
 Rule: When string concatenation with plus signs would exceed 120 characters, use an array with join instead.
-Reason: To allow multi-line formatting that prettier will not collapse back into a single line.
+Reason: To allow multi-line formatting that the formatter will not collapse back into a single line.
 
 Rule: When working through a todo list, complete the easiest tasks first.
 Reason: To build momentum and reduce list size quickly before tackling complex items.

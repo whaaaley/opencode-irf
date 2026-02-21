@@ -7,13 +7,17 @@ import { processFile, type PromptFn } from './process.ts'
 
 // helper: build a prompt fn that returns parse then format results in order
 // cast is necessary because PromptFn is universally generic (<T>) but test mocks
-// return canned data for specific types — no way to satisfy the generic without it
-const makePromptFn = (
-  parseData: { rules: { strength: string; action: string; target: string; reason: string }[] } | null,
-  parseError: string | null,
-  formatData: { rules: string[] } | null,
-  formatError: string | null,
-): PromptFn => {
+// return canned data for specific types; no way to satisfy the generic without it
+
+type MakePromptFnOptions = {
+  parseData: { rules: { strength: string; action: string; target: string; reason: string }[] } | null
+  parseError: string | null
+  formatData: { rules: string[] } | null
+  formatError: string | null
+}
+
+const makePromptFn = (options: MakePromptFnOptions): PromptFn => {
+  const { parseData, parseError, formatData, formatError } = options
   let call = 0
   return (() => {
     call++
@@ -59,10 +63,19 @@ const makeCapturingPromptFn = (
 
 describe('processFile', () => {
   it('returns read error for files that failed to read', async () => {
-    const file: InstructionFile = { path: '/tmp/bad.md', content: '', error: 'ENOENT' }
-    const prompt = makePromptFn(null, null, null, null)
+    const file: InstructionFile = {
+      path: '/tmp/bad.md',
+      content: '',
+      error: 'ENOENT',
+    }
+    const prompt = makePromptFn({
+      parseData: null,
+      parseError: null,
+      formatData: null,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'readError')
     assertEquals(result.path, '/tmp/bad.md')
@@ -72,9 +85,14 @@ describe('processFile', () => {
 
   it('returns parse error when first prompt fails', async () => {
     const file: InstructionFile = { path: '/tmp/test.md', content: 'some instructions' }
-    const prompt = makePromptFn(null, 'LLM timeout', null, null)
+    const prompt = makePromptFn({
+      parseData: null,
+      parseError: 'LLM timeout',
+      formatData: null,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'parseError')
     assert(result.status !== 'success', 'expected error result')
@@ -83,9 +101,14 @@ describe('processFile', () => {
 
   it('returns format error when second prompt fails', async () => {
     const file: InstructionFile = { path: '/tmp/test.md', content: 'some instructions' }
-    const prompt = makePromptFn(sampleParsed, null, null, 'schema mismatch')
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: null,
+      formatError: 'schema mismatch',
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'formatError')
     assert(result.status !== 'success', 'expected error result')
@@ -94,9 +117,14 @@ describe('processFile', () => {
 
   it('returns write error for invalid path', async () => {
     const file: InstructionFile = { path: '/nonexistent/dir/impossible.md', content: 'some instructions' }
-    const prompt = makePromptFn(sampleParsed, null, sampleFormatted, null)
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: sampleFormatted,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'writeError')
     assert(result.status !== 'success', 'expected error result')
@@ -110,9 +138,14 @@ describe('processFile', () => {
     await Deno.writeTextFile(filePath, originalContent)
 
     const file: InstructionFile = { path: filePath, content: originalContent }
-    const prompt = makePromptFn(sampleParsed, null, sampleFormatted, null)
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: sampleFormatted,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'success')
     assert(result.status === 'success', 'expected success result')
@@ -139,9 +172,14 @@ describe('processFile', () => {
     }
 
     const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompt = makePromptFn(sampleParsed, null, multiFormatted, null)
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: multiFormatted,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'success')
     assert(result.status === 'success', 'expected success result')
@@ -169,9 +207,14 @@ describe('processFile', () => {
     }
 
     const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompt = makePromptFn(sampleParsed, null, conciseFormatted, null)
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: conciseFormatted,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt, 'concise')
+    const result = await processFile({ file, prompt, mode: 'concise' })
 
     assertEquals(result.status, 'success')
     assert(result.status === 'success', 'expected success result')
@@ -184,10 +227,19 @@ describe('processFile', () => {
   })
 
   it('includes file path in all messages', async () => {
-    const file: InstructionFile = { path: '/some/project/.cursor/rules.md', content: '', error: 'nope' }
-    const prompt = makePromptFn(null, null, null, null)
+    const file: InstructionFile = {
+      path: '/some/project/.cursor/rules.md',
+      content: '',
+      error: 'nope',
+    }
+    const prompt = makePromptFn({
+      parseData: null,
+      parseError: null,
+      formatData: null,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.path, '/some/project/.cursor/rules.md')
   })
@@ -200,9 +252,14 @@ describe('processFile', () => {
 
     const file: InstructionFile = { path: filePath, content: originalContent }
     const shortFormatted = { rules: ['Rule: Short\nReason: Brief'] }
-    const prompt = makePromptFn(sampleParsed, null, shortFormatted, null)
+    const prompt = makePromptFn({
+      parseData: sampleParsed,
+      parseError: null,
+      formatData: shortFormatted,
+      formatError: null,
+    })
 
-    const result = await processFile(file, prompt)
+    const result = await processFile({ file, prompt })
 
     assertEquals(result.status, 'success')
     assert(result.status === 'success', 'expected success result')
@@ -223,9 +280,9 @@ describe('processFile', () => {
     const prompts: string[] = []
     const capturingPrompt = makeCapturingPromptFn(sampleParsed, sampleFormatted, prompts)
 
-    await processFile(file, capturingPrompt, 'verbose')
+    await processFile({ file, prompt: capturingPrompt, mode: 'verbose' })
 
-    // second call is the format prompt — should contain verbose-specific instructions
+    // second call is the format prompt; should contain verbose-specific instructions
     assertStringIncludes(prompts[1], 'Every rule must include both a Rule line and a Reason line')
 
     await Deno.remove(dir, { recursive: true })
@@ -240,9 +297,9 @@ describe('processFile', () => {
     const prompts: string[] = []
     const capturingPrompt = makeCapturingPromptFn(sampleParsed, { rules: ['- Use arrow functions'] }, prompts)
 
-    await processFile(file, capturingPrompt, 'concise')
+    await processFile({ file, prompt: capturingPrompt, mode: 'concise' })
 
-    // second call is the format prompt — should contain concise-specific instructions
+    // second call is the format prompt; should contain concise-specific instructions
     assertStringIncludes(prompts[1], 'Do not include reasons or justifications')
 
     await Deno.remove(dir, { recursive: true })
@@ -257,9 +314,9 @@ describe('processFile', () => {
     const prompts: string[] = []
     const capturingPrompt = makeCapturingPromptFn(sampleParsed, sampleFormatted, prompts)
 
-    await processFile(file, capturingPrompt)
+    await processFile({ file, prompt: capturingPrompt })
 
-    // second call is the format prompt — should contain balanced-specific instructions
+    // second call is the format prompt; should contain balanced-specific instructions
     assertStringIncludes(prompts[1], 'Use your judgment')
 
     await Deno.remove(dir, { recursive: true })

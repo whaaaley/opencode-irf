@@ -26,29 +26,45 @@ export type FileResult = FileResultSuccess | FileResultError
 // callback that sends a prompt to the LLM and returns validated data
 export type PromptFn = <T>(prompt: string, schema: z.ZodType<T>) => Promise<Result<T>>
 
+type ProcessFileOptions = {
+  file: InstructionFile
+  prompt: PromptFn
+  mode?: FormatMode
+}
+
 // process a single instruction file through the parse -> format -> write pipeline
-export const processFile = async (
-  file: InstructionFile,
-  prompt: PromptFn,
-  mode: FormatMode = 'balanced',
-): Promise<FileResult> => {
+export const processFile = async (options: ProcessFileOptions): Promise<FileResult> => {
+  const { file, prompt, mode = 'balanced' } = options
+
   // skip files that failed to read
   if (file.error) {
-    return { status: 'readError', path: file.path, error: file.error }
+    return {
+      status: 'readError',
+      path: file.path,
+      error: file.error,
+    }
   }
 
   // step 1: parse instruction text -> structured rules
   const parseResult = await prompt(buildParsePrompt(file.content), ParseResponseSchema)
 
   if (parseResult.error !== null) {
-    return { status: 'parseError', path: file.path, error: String(parseResult.error) }
+    return {
+      status: 'parseError',
+      path: file.path,
+      error: String(parseResult.error),
+    }
   }
 
   // step 2: format structured rules -> human-readable rules
   const formatResult = await prompt(buildFormatPrompt(JSON.stringify(parseResult.data), mode), FormatResponseSchema)
 
   if (formatResult.error !== null) {
-    return { status: 'formatError', path: file.path, error: String(formatResult.error) }
+    return {
+      status: 'formatError',
+      path: file.path,
+      error: String(formatResult.error),
+    }
   }
 
   // step 3: write formatted rules back to original file
@@ -57,7 +73,11 @@ export const processFile = async (
   const content = formattedRules.join(joiner) + '\n'
   const { error: writeError } = await safeAsync(() => writeFile(file.path, content, 'utf-8'))
   if (writeError) {
-    return { status: 'writeError', path: file.path, error: writeError.message }
+    return {
+      status: 'writeError',
+      path: file.path,
+      error: writeError.message,
+    }
   }
 
   const comparison = compareBytes(basename(file.path), file.content, content)
