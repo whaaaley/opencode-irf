@@ -1,42 +1,41 @@
-import { assertEquals } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
+import { describe, expect, it } from 'bun:test'
 import { buildTable, compareBytes, formatRow, summarize } from './compare.ts'
 
 describe('compareBytes', () => {
   it('detects savings when original is larger', () => {
     const result = compareBytes('test.md', 'hello world', 'hello')
 
-    assertEquals(result.file, 'test.md')
-    assertEquals(result.originalBytes, 11)
-    assertEquals(result.generatedBytes, 5)
-    assertEquals(result.difference, 6)
+    expect(result.file).toEqual('test.md')
+    expect(result.originalBytes).toEqual(11)
+    expect(result.generatedBytes).toEqual(5)
+    expect(result.difference).toEqual(6)
   })
 
   it('detects increase when generated is larger', () => {
     const result = compareBytes('test.md', 'hi', 'hello world')
 
-    assertEquals(result.difference, -9)
+    expect(result.difference).toEqual(-9)
   })
 
   it('handles equal sizes', () => {
     const result = compareBytes('test.md', 'abc', 'xyz')
 
-    assertEquals(result.difference, 0)
-    assertEquals(result.percentChange, 0)
+    expect(result.difference).toEqual(0)
+    expect(result.percentChange).toEqual(0)
   })
 
   it('handles empty original without dividing by zero', () => {
     const result = compareBytes('test.md', '', 'something')
 
-    assertEquals(result.originalBytes, 0)
-    assertEquals(result.percentChange, 0)
+    expect(result.originalBytes).toEqual(0)
+    expect(result.percentChange).toEqual(0)
   })
 
   it('correctly measures multi-byte characters', () => {
     const result = compareBytes('test.md', '\u00e9', 'e')
 
-    assertEquals(result.originalBytes, 2)
-    assertEquals(result.generatedBytes, 1)
+    expect(result.originalBytes).toEqual(2)
+    expect(result.generatedBytes).toEqual(1)
   })
 })
 
@@ -50,10 +49,10 @@ describe('formatRow', () => {
       percentChange: 20,
     })
 
-    assertEquals(row.includes('test.md'), true)
-    assertEquals(row.includes('100'), true)
-    assertEquals(row.includes('80'), true)
-    assertEquals(row.includes('\u2212'), true)
+    expect(row.includes('test.md')).toEqual(true)
+    expect(row.includes('100')).toEqual(true)
+    expect(row.includes('80')).toEqual(true)
+    expect(row.includes('\u2212')).toEqual(true)
   })
 
   it('shows plus for increase', () => {
@@ -65,7 +64,7 @@ describe('formatRow', () => {
       percentChange: -100,
     })
 
-    assertEquals(row.includes('+'), true)
+    expect(row.includes('+')).toEqual(true)
   })
 })
 
@@ -76,24 +75,24 @@ describe('summarize', () => {
       { file: 'b.md', originalBytes: 200, generatedBytes: 150, difference: 50, percentChange: 25 },
     ])
 
-    assertEquals(totals.totalOriginal, 300)
-    assertEquals(totals.totalGenerated, 230)
-    assertEquals(totals.totalDifference, 70)
+    expect(totals.totalOriginal).toEqual(300)
+    expect(totals.totalGenerated).toEqual(230)
+    expect(totals.totalDifference).toEqual(70)
   })
 
   it('handles empty array', () => {
     const totals = summarize([])
 
-    assertEquals(totals.totalOriginal, 0)
-    assertEquals(totals.totalGenerated, 0)
-    assertEquals(totals.totalDifference, 0)
-    assertEquals(totals.totalPercentChange, 0)
+    expect(totals.totalOriginal).toEqual(0)
+    expect(totals.totalGenerated).toEqual(0)
+    expect(totals.totalDifference).toEqual(0)
+    expect(totals.totalPercentChange).toEqual(0)
   })
 })
 
 describe('buildTable', () => {
   it('returns empty string for empty results', () => {
-    assertEquals(buildTable([]), '')
+    expect(buildTable([])).toEqual('')
   })
 
   it('includes header, rows, totals, and summary', () => {
@@ -103,13 +102,13 @@ describe('buildTable', () => {
     ]
     const table = buildTable(results)
 
-    assertEquals(table.includes('File'), true)
-    assertEquals(table.includes('Original'), true)
-    assertEquals(table.includes('Generated'), true)
-    assertEquals(table.includes('a.md'), true)
-    assertEquals(table.includes('b.md'), true)
-    assertEquals(table.includes('TOTAL'), true)
-    assertEquals(table.includes('INCREASED'), true)
+    expect(table.includes('File')).toEqual(true)
+    expect(table.includes('Original')).toEqual(true)
+    expect(table.includes('Generated')).toEqual(true)
+    expect(table.includes('a.md')).toEqual(true)
+    expect(table.includes('b.md')).toEqual(true)
+    expect(table.includes('TOTAL')).toEqual(true)
+    expect(table.includes('INCREASED')).toEqual(true)
   })
 
   it('shows SAVED when total is smaller', () => {
@@ -118,7 +117,7 @@ describe('buildTable', () => {
     ]
     const table = buildTable(results)
 
-    assertEquals(table.includes('SAVED'), true)
+    expect(table.includes('SAVED')).toEqual(true)
   })
 
   it('sorts rows by largest absolute difference first', () => {
@@ -130,6 +129,6 @@ describe('buildTable', () => {
     const bigIdx = table.indexOf('big.md')
     const smallIdx = table.indexOf('small.md')
 
-    assertEquals(bigIdx < smallIdx, true)
+    expect(bigIdx < smallIdx).toEqual(true)
   })
 })

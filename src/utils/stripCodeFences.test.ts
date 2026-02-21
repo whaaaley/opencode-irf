@@ -1,48 +1,47 @@
-import { assertEquals } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
+import { describe, expect, it } from 'bun:test'
 import { stripCodeFences } from './stripCodeFences.ts'
 
 describe('stripCodeFences', () => {
   it('returns plain text unchanged', () => {
-    assertEquals(stripCodeFences('hello world'), 'hello world')
+    expect(stripCodeFences('hello world')).toEqual('hello world')
   })
 
   it('strips ```json fence', () => {
     const input = '```json\n{"rules": []}\n```'
-    assertEquals(stripCodeFences(input), '{"rules": []}')
+    expect(stripCodeFences(input)).toEqual('{"rules": []}')
   })
 
   it('strips bare ``` fence', () => {
     const input = '```\n{"rules": []}\n```'
-    assertEquals(stripCodeFences(input), '{"rules": []}')
+    expect(stripCodeFences(input)).toEqual('{"rules": []}')
   })
 
   it('strips fence with trailing whitespace', () => {
     const input = '```json  \n{"rules": []}\n```  '
-    assertEquals(stripCodeFences(input), '{"rules": []}')
+    expect(stripCodeFences(input)).toEqual('{"rules": []}')
   })
 
   it('trims surrounding whitespace', () => {
     const input = '  \n {"rules": []}  \n '
-    assertEquals(stripCodeFences(input), '{"rules": []}')
+    expect(stripCodeFences(input)).toEqual('{"rules": []}')
   })
 
   it('handles empty string', () => {
-    assertEquals(stripCodeFences(''), '')
+    expect(stripCodeFences('')).toEqual('')
   })
 
   it('handles fence with no content', () => {
     const input = '```json\n```'
-    assertEquals(stripCodeFences(input), '')
+    expect(stripCodeFences(input)).toEqual('')
   })
 
   it('preserves inner newlines', () => {
     const input = '```json\n{\n  "a": 1,\n  "b": 2\n}\n```'
-    assertEquals(stripCodeFences(input), '{\n  "a": 1,\n  "b": 2\n}')
+    expect(stripCodeFences(input)).toEqual('{\n  "a": 1,\n  "b": 2\n}')
   })
 
   it('strips fence preceded by text on the same line', () => {
     const input = 'Here is the JSON: ```json\n{"rules": []}\n```'
-    assertEquals(stripCodeFences(input), '{"rules": []}')
+    expect(stripCodeFences(input)).toEqual('{"rules": []}')
   })
 })

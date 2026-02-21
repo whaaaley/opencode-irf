@@ -39,6 +39,8 @@
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "rm -rf dist",
+    "test": "bun test",
+    "fmt": "bun run dprint fmt",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
@@ -46,7 +48,8 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "1.1.12",
-    "@types/node": "^25.1.0",
+    "@types/bun": "latest",
+    "dprint": "^0.49.1",
     "typescript": "5.9.3"
   },
   "peerDependencies": {

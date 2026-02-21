@@ -1,14 +1,13 @@
-import { assertEquals } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
+import { describe, expect, it } from 'bun:test'
 import { extractLlmError } from './extractLlmError.ts'
 
 describe('extractLlmError', () => {
   it('returns null when no error', () => {
-    assertEquals(extractLlmError({ role: 'assistant' }), null)
+    expect(extractLlmError({ role: 'assistant' })).toEqual(null)
   })
 
   it('returns null when error is undefined', () => {
-    assertEquals(extractLlmError({ role: 'assistant', error: undefined }), null)
+    expect(extractLlmError({ role: 'assistant', error: undefined })).toEqual(null)
   })
 
   it('extracts data.message when present', () => {
@@ -19,7 +18,7 @@ describe('extractLlmError', () => {
         data: { message: 'rate limit exceeded' },
       },
     }
-    assertEquals(extractLlmError(info), 'rate limit exceeded')
+    expect(extractLlmError(info)).toEqual('rate limit exceeded')
   })
 
   it('falls back to name when data.message is missing', () => {
@@ -27,7 +26,7 @@ describe('extractLlmError', () => {
       role: 'assistant',
       error: { name: 'TimeoutError' },
     }
-    assertEquals(extractLlmError(info), 'TimeoutError')
+    expect(extractLlmError(info)).toEqual('TimeoutError')
   })
 
   it('falls back to name when data exists but message is missing', () => {
@@ -35,7 +34,7 @@ describe('extractLlmError', () => {
       role: 'assistant',
       error: { name: 'APIError', data: {} },
     }
-    assertEquals(extractLlmError(info), 'APIError')
+    expect(extractLlmError(info)).toEqual('APIError')
   })
 
   it('returns Unknown LLM error when no name or data', () => {
@@ -43,6 +42,6 @@ describe('extractLlmError', () => {
       role: 'assistant',
       error: {},
     }
-    assertEquals(extractLlmError(info), 'Unknown LLM error')
+    expect(extractLlmError(info)).toEqual('Unknown LLM error')
   })
 })

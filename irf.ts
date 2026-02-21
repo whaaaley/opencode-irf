@@ -50,8 +50,6 @@ const appendComparisonTable = (lines: string[], comparisons: ComparisonResult[])
   lines.push('')
   lines.push('IMPORTANT: Show the comparison table above to the user exactly as-is.')
 }
-
-// deno-lint-ignore require-await
 const plugin: Plugin = async ({ directory, client }) => {
   return {
     tool: {

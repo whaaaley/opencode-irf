@@ -1,11 +1,10 @@
-import { assertEquals } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
+import { describe, expect, it } from 'bun:test'
 import { extractText } from './session.ts'
 
 describe('extractText', () => {
   it('extracts text from a single text part', () => {
     const parts = [{ type: 'text', text: 'hello' }]
-    assertEquals(extractText(parts), 'hello')
+    expect(extractText(parts)).toEqual('hello')
   })
 
   it('concatenates multiple text parts', () => {
@@ -13,7 +12,7 @@ describe('extractText', () => {
       { type: 'text', text: 'hello ' },
       { type: 'text', text: 'world' },
     ]
-    assertEquals(extractText(parts), 'hello world')
+    expect(extractText(parts)).toEqual('hello world')
   })
 
   it('skips non-text parts', () => {
@@ -22,11 +21,11 @@ describe('extractText', () => {
       { type: 'text', text: 'kept' },
       { type: 'image' },
     ]
-    assertEquals(extractText(parts), 'kept')
+    expect(extractText(parts)).toEqual('kept')
   })
 
   it('returns empty string for empty array', () => {
-    assertEquals(extractText([]), '')
+    expect(extractText([])).toEqual('')
   })
 
   it('returns empty string when no text parts exist', () => {
@@ -34,7 +33,7 @@ describe('extractText', () => {
       { type: 'tool_call' },
       { type: 'image' },
     ]
-    assertEquals(extractText(parts), '')
+    expect(extractText(parts)).toEqual('')
   })
 
   it('skips text parts with empty text', () => {
@@ -42,7 +41,7 @@ describe('extractText', () => {
       { type: 'text', text: '' },
       { type: 'text', text: 'valid' },
     ]
-    assertEquals(extractText(parts), 'valid')
+    expect(extractText(parts)).toEqual('valid')
   })
 
   it('skips text parts with undefined text', () => {
@@ -50,6 +49,6 @@ describe('extractText', () => {
       { type: 'text' },
       { type: 'text', text: 'valid' },
     ]
-    assertEquals(extractText(parts), 'valid')
+    expect(extractText(parts)).toEqual('valid')
   })
 })

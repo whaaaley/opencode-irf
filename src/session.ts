@@ -55,7 +55,12 @@ export const detectModel = async (client: PluginInput['client'], sessionId: stri
     return null
   }
   for (let i = messages.length - 1; i >= 0; i--) {
-    const info = messages[i].info
+    const message = messages[i]
+    if (!message) {
+      continue
+    }
+
+    const info = message.info
     if (info.role === 'assistant' && info.providerID && info.modelID) {
       return {
         providerID: info.providerID,

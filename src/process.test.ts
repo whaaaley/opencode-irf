@@ -1,6 +1,6 @@
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
-import { readFile } from 'node:fs/promises'
+import { describe, expect, it } from 'bun:test'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { InstructionFile } from './discover.ts'
 import { processFile, type PromptFn } from './process.ts'
@@ -77,10 +77,10 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'readError')
-    assertEquals(result.path, '/tmp/bad.md')
-    assert(result.status !== 'success', 'expected error result')
-    assertEquals(result.error, 'ENOENT')
+    expect(result.status).toEqual('readError')
+    expect(result.path).toEqual('/tmp/bad.md')
+    expect(result.status !== 'success').toBeTruthy()
+    expect(result.error).toEqual('ENOENT')
   })
 
   it('returns parse error when first prompt fails', async () => {
@@ -94,9 +94,9 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'parseError')
-    assert(result.status !== 'success', 'expected error result')
-    assertStringIncludes(result.error, 'LLM timeout')
+    expect(result.status).toEqual('parseError')
+    expect(result.status !== 'success').toBeTruthy()
+    expect(result.error).toContain('LLM timeout')
   })
 
   it('returns format error when second prompt fails', async () => {
@@ -110,9 +110,9 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'formatError')
-    assert(result.status !== 'success', 'expected error result')
-    assertStringIncludes(result.error, 'schema mismatch')
+    expect(result.status).toEqual('formatError')
+    expect(result.status !== 'success').toBeTruthy()
+    expect(result.error).toContain('schema mismatch')
   })
 
   it('returns write error for invalid path', async () => {
@@ -126,16 +126,16 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'writeError')
-    assert(result.status !== 'success', 'expected error result')
-    assertStringIncludes(result.error, 'ENOENT')
+    expect(result.status).toEqual('writeError')
+    expect(result.status !== 'success').toBeTruthy()
+    expect(result.error).toContain('ENOENT')
   })
 
   it('writes formatted rules and returns comparison on success', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'rules.md')
     const originalContent = 'Use arrow functions for consistency.\nPrefer const over let.\n'
-    await Deno.writeTextFile(filePath, originalContent)
+    await writeFile(filePath, originalContent, 'utf-8')
 
     const file: InstructionFile = { path: filePath, content: originalContent }
     const prompt = makePromptFn({
@@ -147,22 +147,22 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'success')
-    assert(result.status === 'success', 'expected success result')
-    assertEquals(result.rulesCount, 1)
-    assertEquals(result.comparison.file, 'rules.md')
+    expect(result.status).toEqual('success')
+    expect(result.status === 'success').toBeTruthy()
+    expect(result.rulesCount).toEqual(1)
+    expect(result.comparison.file).toEqual('rules.md')
 
     // verify file was actually written with correct content
     const written = await readFile(filePath, 'utf-8')
-    assertEquals(written, 'Rule: Use arrow functions\nReason: consistency\n')
+    expect(written).toEqual('Rule: Use arrow functions\nReason: consistency\n')
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('joins multiple rules with double newline in verbose and balanced modes', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'multi.md')
-    await Deno.writeTextFile(filePath, 'original')
+    await writeFile(filePath, 'original', 'utf-8')
 
     const multiFormatted = {
       rules: [
@@ -181,23 +181,22 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'success')
-    assert(result.status === 'success', 'expected success result')
-    assertEquals(result.rulesCount, 2)
+    expect(result.status).toEqual('success')
+    expect(result.status === 'success').toBeTruthy()
+    expect(result.rulesCount).toEqual(2)
 
     const written = await readFile(filePath, 'utf-8')
-    assertEquals(
-      written,
+    expect(written).toEqual(
       'Rule: Use arrow functions\nReason: consistency\n\nRule: Prefer const\nReason: immutability\n',
     )
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('joins multiple rules with single newline in concise mode', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'concise.md')
-    await Deno.writeTextFile(filePath, 'original')
+    await writeFile(filePath, 'original', 'utf-8')
 
     const conciseFormatted = {
       rules: [
@@ -216,14 +215,14 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt, mode: 'concise' })
 
-    assertEquals(result.status, 'success')
-    assert(result.status === 'success', 'expected success result')
-    assertEquals(result.rulesCount, 2)
+    expect(result.status).toEqual('success')
+    expect(result.status === 'success').toBeTruthy()
+    expect(result.rulesCount).toEqual(2)
 
     const written = await readFile(filePath, 'utf-8')
-    assertEquals(written, '- Use arrow functions for consistency.\n- Prefer const over let.\n')
+    expect(written).toEqual('- Use arrow functions for consistency.\n- Prefer const over let.\n')
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('includes file path in all messages', async () => {
@@ -241,14 +240,14 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.path, '/some/project/.cursor/rules.md')
+    expect(result.path).toEqual('/some/project/.cursor/rules.md')
   })
 
   it('comparison reflects byte difference between original and generated', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'test.md')
     const originalContent = 'a'.repeat(100)
-    await Deno.writeTextFile(filePath, originalContent)
+    await writeFile(filePath, originalContent, 'utf-8')
 
     const file: InstructionFile = { path: filePath, content: originalContent }
     const shortFormatted = { rules: ['Rule: Short\nReason: Brief'] }
@@ -261,20 +260,20 @@ describe('processFile', () => {
 
     const result = await processFile({ file, prompt })
 
-    assertEquals(result.status, 'success')
-    assert(result.status === 'success', 'expected success result')
-    assertEquals(result.comparison.originalBytes, 100)
+    expect(result.status).toEqual('success')
+    expect(result.status === 'success').toBeTruthy()
+    expect(result.comparison.originalBytes).toEqual(100)
     // "Rule: Short\nReason: Brief\n" = 26 bytes
-    assertEquals(result.comparison.generatedBytes, 26)
-    assertEquals(result.comparison.difference, 74)
+    expect(result.comparison.generatedBytes).toEqual(26)
+    expect(result.comparison.difference).toEqual(74)
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('passes verbose mode to format prompt', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'test.md')
-    await Deno.writeTextFile(filePath, 'original')
+    await writeFile(filePath, 'original', 'utf-8')
 
     const file: InstructionFile = { path: filePath, content: 'original' }
     const prompts: string[] = []
@@ -283,15 +282,15 @@ describe('processFile', () => {
     await processFile({ file, prompt: capturingPrompt, mode: 'verbose' })
 
     // second call is the format prompt; should contain verbose-specific instructions
-    assertStringIncludes(prompts[1], 'Every rule must include both a Rule line and a Reason line')
+    expect(prompts[1]).toContain('Every rule must include both a Rule line and a Reason line')
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('passes concise mode to format prompt', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'test.md')
-    await Deno.writeTextFile(filePath, 'original')
+    await writeFile(filePath, 'original', 'utf-8')
 
     const file: InstructionFile = { path: filePath, content: 'original' }
     const prompts: string[] = []
@@ -300,15 +299,15 @@ describe('processFile', () => {
     await processFile({ file, prompt: capturingPrompt, mode: 'concise' })
 
     // second call is the format prompt; should contain concise-specific instructions
-    assertStringIncludes(prompts[1], 'Do not include reasons or justifications')
+    expect(prompts[1]).toContain('Do not include reasons or justifications')
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('defaults to balanced mode when mode is omitted', async () => {
-    const dir = await Deno.makeTempDir()
+    const dir = await mkdtemp(join(tmpdir(), 'irf-process-'))
     const filePath = join(dir, 'test.md')
-    await Deno.writeTextFile(filePath, 'original')
+    await writeFile(filePath, 'original', 'utf-8')
 
     const file: InstructionFile = { path: filePath, content: 'original' }
     const prompts: string[] = []
@@ -317,8 +316,8 @@ describe('processFile', () => {
     await processFile({ file, prompt: capturingPrompt })
 
     // second call is the format prompt; should contain balanced-specific instructions
-    assertStringIncludes(prompts[1], 'Use your judgment')
+    expect(prompts[1]).toContain('Use your judgment')
 
-    await Deno.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   })
 })

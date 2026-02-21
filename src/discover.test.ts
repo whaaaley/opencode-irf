@@ -1,5 +1,4 @@
-import { assertEquals, assertNotEquals } from '@std/assert'
-import { afterEach, describe, it } from '@std/testing/bdd'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -35,9 +34,9 @@ describe('discover', () => {
     const dir = await makeTmpDir()
     const result = await discover(dir)
 
-    assertEquals(result.data, null)
-    assertNotEquals(result.error, null)
-    assertEquals(result.error !== null && result.error.includes('Could not read'), true)
+    expect(result.data).toEqual(null)
+    expect(result.error).not.toEqual(null)
+    expect(result.error !== null && result.error.includes('Could not read')).toEqual(true)
   })
 
   it('returns error when instructions array is missing', async () => {
@@ -45,9 +44,9 @@ describe('discover', () => {
     await writeConfig(dir, { theme: 'opencode' })
     const result = await discover(dir)
 
-    assertEquals(result.data, null)
-    assertNotEquals(result.error, null)
-    assertEquals(result.error !== null && result.error.includes('No "instructions" array'), true)
+    expect(result.data).toEqual(null)
+    expect(result.error).not.toEqual(null)
+    expect(result.error !== null && result.error.includes('No "instructions" array')).toEqual(true)
   })
 
   it('returns error when instructions array is empty', async () => {
@@ -55,9 +54,9 @@ describe('discover', () => {
     await writeConfig(dir, { instructions: [] })
     const result = await discover(dir)
 
-    assertEquals(result.data, null)
-    assertNotEquals(result.error, null)
-    assertEquals(result.error !== null && result.error.includes('No "instructions" array'), true)
+    expect(result.data).toEqual(null)
+    expect(result.error).not.toEqual(null)
+    expect(result.error !== null && result.error.includes('No "instructions" array')).toEqual(true)
   })
 
   it('returns error when no files match patterns', async () => {
@@ -65,9 +64,9 @@ describe('discover', () => {
     await writeConfig(dir, { instructions: ['nonexistent/*.md'] })
     const result = await discover(dir)
 
-    assertEquals(result.data, null)
-    assertNotEquals(result.error, null)
-    assertEquals(result.error !== null && result.error.includes('No instruction files found matching'), true)
+    expect(result.data).toEqual(null)
+    expect(result.error).not.toEqual(null)
+    expect(result.error !== null && result.error.includes('No instruction files found matching')).toEqual(true)
   })
 
   it('discovers files matching a single glob pattern', async () => {
@@ -76,11 +75,11 @@ describe('discover', () => {
     await writeInstruction(dir, 'docs/rules.md', 'rule content')
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data.length, 1)
-    assertEquals(result.data !== null && result.data[0].path, join(dir, 'docs/rules.md'))
-    assertEquals(result.data !== null && result.data[0].content, 'rule content')
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data.length).toEqual(1)
+    expect(result.data !== null && result.data[0].path).toEqual(join(dir, 'docs/rules.md'))
+    expect(result.data !== null && result.data[0].content).toEqual('rule content')
   })
 
   it('discovers files matching multiple glob patterns', async () => {
@@ -90,14 +89,14 @@ describe('discover', () => {
     await writeInstruction(dir, 'agents/b.md', 'beta')
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data.length, 2)
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data.length).toEqual(2)
 
     if (result.data) {
       const paths = result.data.map((f) => f.path)
-      assertEquals(paths.includes(join(dir, 'docs/a.md')), true)
-      assertEquals(paths.includes(join(dir, 'agents/b.md')), true)
+      expect(paths.includes(join(dir, 'docs/a.md'))).toEqual(true)
+      expect(paths.includes(join(dir, 'agents/b.md'))).toEqual(true)
     }
   })
 
@@ -107,9 +106,9 @@ describe('discover', () => {
     await writeInstruction(dir, 'docs/rules.md', 'content')
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data.length, 1)
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data.length).toEqual(1)
   })
 
   it('reads file content correctly', async () => {
@@ -119,9 +118,9 @@ describe('discover', () => {
     await writeInstruction(dir, 'rules.md', content)
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data[0].content, content)
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data[0].content).toEqual(content)
   })
 
   it('returns error content for unreadable files', async () => {
@@ -132,15 +131,15 @@ describe('discover', () => {
     await mkdir(join(dir, 'docs/bad.md'), { recursive: true })
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data.length, 2)
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data.length).toEqual(2)
 
     if (result.data) {
       const bad = result.data.find((f) => f.path.includes('bad.md'))
-      assertNotEquals(bad, undefined)
-      assertEquals(bad !== undefined && bad.error !== undefined, true)
-      assertEquals(bad !== undefined && bad.content, '')
+      expect(bad).not.toEqual(undefined)
+      expect(bad !== undefined && bad.error !== undefined).toEqual(true)
+      expect(bad !== undefined && bad.content).toEqual('')
     }
   })
 
@@ -149,9 +148,9 @@ describe('discover', () => {
     await writeFile(join(dir, 'opencode.json'), 'not valid json', 'utf-8')
     const result = await discover(dir)
 
-    assertEquals(result.data, null)
-    assertNotEquals(result.error, null)
-    assertEquals(result.error !== null && result.error.includes('Invalid JSON'), true)
+    expect(result.data).toEqual(null)
+    expect(result.error).not.toEqual(null)
+    expect(result.error !== null && result.error.includes('Invalid JSON')).toEqual(true)
   })
 
   it('filters out non-string entries in instructions', async () => {
@@ -161,9 +160,9 @@ describe('discover', () => {
     await writeInstruction(dir, 'agents/b.md', 'beta')
     const result = await discover(dir)
 
-    assertEquals(result.error, null)
-    assertNotEquals(result.data, null)
-    assertEquals(result.data !== null && result.data.length, 2)
+    expect(result.error).toEqual(null)
+    expect(result.data).not.toEqual(null)
+    expect(result.data !== null && result.data.length).toEqual(2)
   })
 })
 
@@ -181,10 +180,10 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, ['docs/rules.md'])
 
-    assertEquals(results.length, 1)
-    assertEquals(results[0].path, join(dir, 'docs/rules.md'))
-    assertEquals(results[0].content, 'rule content')
-    assertEquals(results[0].error, undefined)
+    expect(results.length).toEqual(1)
+    expect(results[0].path).toEqual(join(dir, 'docs/rules.md'))
+    expect(results[0].content).toEqual('rule content')
+    expect(results[0].error).toEqual(undefined)
   })
 
   it('reads files by absolute path', async () => {
@@ -194,9 +193,9 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, [absPath])
 
-    assertEquals(results.length, 1)
-    assertEquals(results[0].content, 'test content')
-    assertEquals(results[0].error, undefined)
+    expect(results.length).toEqual(1)
+    expect(results[0].content).toEqual('test content')
+    expect(results[0].error).toEqual(undefined)
   })
 
   it('reads multiple files', async () => {
@@ -206,9 +205,9 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, ['a.md', 'b.md'])
 
-    assertEquals(results.length, 2)
-    assertEquals(results[0].content, 'alpha')
-    assertEquals(results[1].content, 'beta')
+    expect(results.length).toEqual(2)
+    expect(results[0].content).toEqual('alpha')
+    expect(results[1].content).toEqual('beta')
   })
 
   it('returns error for nonexistent file', async () => {
@@ -216,9 +215,9 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, ['missing.md'])
 
-    assertEquals(results.length, 1)
-    assertEquals(results[0].content, '')
-    assertNotEquals(results[0].error, undefined)
+    expect(results.length).toEqual(1)
+    expect(results[0].content).toEqual('')
+    expect(results[0].error).not.toEqual(undefined)
   })
 
   it('returns empty array for empty paths', async () => {
@@ -226,7 +225,7 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, [])
 
-    assertEquals(results.length, 0)
+    expect(results.length).toEqual(0)
   })
 
   it('handles mix of valid and invalid paths', async () => {
@@ -235,10 +234,10 @@ describe('readFilePaths', () => {
 
     const results = await readFilePaths(dir, ['good.md', 'bad.md'])
 
-    assertEquals(results.length, 2)
-    assertEquals(results[0].content, 'good content')
-    assertEquals(results[0].error, undefined)
-    assertEquals(results[1].content, '')
-    assertNotEquals(results[1].error, undefined)
+    expect(results.length).toEqual(2)
+    expect(results[0].content).toEqual('good content')
+    expect(results[0].error).toEqual(undefined)
+    expect(results[1].content).toEqual('')
+    expect(results[1].error).not.toEqual(undefined)
   })
 })

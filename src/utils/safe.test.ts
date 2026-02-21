@@ -1,20 +1,19 @@
-import { assertEquals, assertInstanceOf } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
+import { describe, expect, it } from 'bun:test'
 import { safe, safeAsync } from './safe.ts'
 
 describe('safe', () => {
   it('returns data on success', () => {
     const result = safe(() => 42)
 
-    assertEquals(result.data, 42)
-    assertEquals(result.error, null)
+    expect(result.data).toEqual(42)
+    expect(result.error).toEqual(null)
   })
 
   it('returns data for string values', () => {
     const result = safe(() => 'hello')
 
-    assertEquals(result.data, 'hello')
-    assertEquals(result.error, null)
+    expect(result.data).toEqual('hello')
+    expect(result.error).toEqual(null)
   })
 
   it('returns error when function throws an Error', () => {
@@ -22,9 +21,9 @@ describe('safe', () => {
       throw new Error('boom')
     })
 
-    assertEquals(result.data, null)
-    assertInstanceOf(result.error, Error)
-    assertEquals(result.error.message, 'boom')
+    expect(result.data).toEqual(null)
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.error?.message).toEqual('boom')
   })
 
   it('wraps non-Error throws in an Error', () => {
@@ -32,23 +31,23 @@ describe('safe', () => {
       throw 'string error'
     })
 
-    assertEquals(result.data, null)
-    assertInstanceOf(result.error, Error)
-    assertEquals(result.error.message, 'string error')
+    expect(result.data).toEqual(null)
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.error?.message).toEqual('string error')
   })
 
   it('returns null data as success', () => {
     const result = safe(() => null)
 
-    assertEquals(result.data, null)
-    assertEquals(result.error, null)
+    expect(result.data).toEqual(null)
+    expect(result.error).toEqual(null)
   })
 
   it('returns undefined data as success', () => {
     const result = safe(() => undefined)
 
-    assertEquals(result.data, undefined)
-    assertEquals(result.error, null)
+    expect(result.data).toEqual(undefined)
+    expect(result.error).toEqual(null)
   })
 })
 
@@ -56,34 +55,33 @@ describe('safeAsync', () => {
   it('returns data on success', async () => {
     const result = await safeAsync(() => Promise.resolve(42))
 
-    assertEquals(result.data, 42)
-    assertEquals(result.error, null)
+    expect(result.data).toEqual(42)
+    expect(result.error).toEqual(null)
   })
 
   it('returns error when promise rejects with Error', async () => {
     const result = await safeAsync(() => Promise.reject(new Error('async boom')))
 
-    assertEquals(result.data, null)
-    assertInstanceOf(result.error, Error)
-    assertEquals(result.error.message, 'async boom')
+    expect(result.data).toEqual(null)
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.error?.message).toEqual('async boom')
   })
 
   it('wraps non-Error rejections in an Error', async () => {
     const result = await safeAsync(() => Promise.reject('string rejection'))
 
-    assertEquals(result.data, null)
-    assertInstanceOf(result.error, Error)
-    assertEquals(result.error.message, 'string rejection')
+    expect(result.data).toEqual(null)
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.error?.message).toEqual('string rejection')
   })
 
   it('returns error when async function throws', async () => {
-    // deno-lint-ignore require-await
     const result = await safeAsync(async () => {
       throw new Error('thrown in async')
     })
 
-    assertEquals(result.data, null)
-    assertInstanceOf(result.error, Error)
-    assertEquals(result.error.message, 'thrown in async')
+    expect(result.data).toEqual(null)
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.error?.message).toEqual('thrown in async')
   })
 })
