@@ -1,6 +1,6 @@
 {
   "name": "opencode-irf",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "OpenCode plugin that converts unstructured instructions into structured rules using speech act theory and deontic logic.",
   "keywords": [
     "opencode",
@@ -42,12 +42,12 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "zod": "^4.1.8"
+    "zod": "4.1.8"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.1.49",
+    "@opencode-ai/plugin": "1.1.12",
     "@types/node": "^25.1.0",
-    "typescript": "^5.9.3"
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=0.13.7"

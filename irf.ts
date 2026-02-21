@@ -1,13 +1,13 @@
 import type { Plugin } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
-import { discover, readFilePaths } from './src/discover'
-import type { InstructionFile } from './src/discover'
-import { type FileResult, processFile, type PromptFn } from './src/process'
-import { isFormatMode } from './src/prompt'
-import { detectModel, promptWithRetry } from './src/session'
-import { buildTable, type ComparisonResult } from './src/utils/compare'
-import type { Result } from './src/utils/safe'
-import { safeAsync } from './src/utils/safe'
+import { discover, readFilePaths } from './src/discover.ts'
+import type { InstructionFile } from './src/discover.ts'
+import { type FileResult, processFile, type PromptFn } from './src/process.ts'
+import { isFormatMode } from './src/prompt.ts'
+import { detectModel, promptWithRetry } from './src/session.ts'
+import { buildTable, type ComparisonResult } from './src/utils/compare.ts'
+import type { Result } from './src/utils/safe.ts'
+import { safeAsync } from './src/utils/safe.ts'
 
 // resolve instruction files from explicit paths or opencode.json discovery
 const resolveFiles = async (directory: string, filesArg?: string): Promise<Result<InstructionFile[]>> => {
