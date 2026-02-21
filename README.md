@@ -7,9 +7,46 @@ An OpenCode plugin that converts unstructured instruction text into structured, 
 IRF takes raw instruction files and processes them through a two-step AI pipeline:
 
 1. **Parse** — Converts raw text into structured rule components (strength, action, target, context, reason)
-2. **Format** — Converts structured rules back into clean, human-readable `Rule: / Reason:` pairs
+2. **Format** — Converts structured rules into one of three output modes
 
 This process helps standardize instruction formats, reduce verbosity, and create consistent rule-based content.
+
+### Format Modes
+
+The `irf-rewrite` tool accepts a `mode` argument that controls output density:
+
+- **verbose** — Full `Rule: / Reason:` pairs for every rule. Best for onboarding and documentation where understanding *why* matters.
+- **balanced** (default) — The LLM decides which rules need reasons and which are self-explanatory. Keeps reasons for non-obvious rules, drops them for clear directives.
+- **concise** — Bullet list of directives only, no reasons. Minimal token usage, best for LLM-consumed instruction files where compliance is the goal.
+
+```
+/irf                   # uses balanced (default)
+/irf --mode verbose
+/irf --mode concise
+```
+
+**verbose:**
+```
+Rule: Use arrow functions as the standard function syntax.
+Reason: Arrow functions provide lexical this binding and a more compact syntax.
+
+Rule: Never use function declarations or function expressions.
+Reason: Arrow functions are the standard syntax for the project.
+```
+
+**balanced:**
+```
+Rule: Use arrow functions as the standard function syntax.
+Reason: Arrow functions provide lexical this binding and a more compact syntax.
+
+Rule: Never use function declarations or function expressions.
+```
+
+**concise:**
+```
+- Use arrow functions as the standard function syntax.
+- Never use function declarations or function expressions.
+```
 
 ## Installation
 
@@ -102,6 +139,7 @@ Reason: Better stack traces and error handling.
 ```
 src/
   index.ts         — Plugin entry, tool registration, orchestration
+  process.ts       — Per-file parse/format/write pipeline
   session.ts       — Model detection, LLM prompting with retry
   discover.ts      — Reads opencode.json, resolves globs, reads files
   schema.ts        — Zod schemas for parsed rules and responses
