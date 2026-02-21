@@ -1,4 +1,3 @@
-// Build the system prompt for the parsed rules generation step
 export const buildParsePrompt = (input: string): string => {
   const instructions = [
     'You are a rule parser that converts raw instructions into structured parsed rules.',
@@ -10,7 +9,6 @@ export const buildParsePrompt = (input: string): string => {
   return [instructions, 'Instructions to parse:', input].join('\n\n')
 }
 
-// Build the system prompt for the human-readable rules generation step
 export const buildFormatPrompt = (parsedRulesJson: string): string => {
   const instructions = [
     'You are a rule formatter that converts structured parsed rules into human-readable rules.',
