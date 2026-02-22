@@ -1,55 +1,14 @@
 import type { Plugin } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
-import { discover, readFilePaths } from './src/discover.ts'
-import type { InstructionFile } from './src/discover.ts'
-import { type FileResult, processFile, type PromptFn } from './src/process.ts'
+import { buildComparisonSection, formatFileResult } from './src/format.ts'
+import { sendResult } from './src/opencode/notify.ts'
+import { processFile, type PromptFn } from './src/process.ts'
 import { isFormatMode } from './src/prompt.ts'
+import { resolveFiles } from './src/resolve.ts'
 import { detectModel, promptWithRetry } from './src/session.ts'
-import { buildTable, type ComparisonResult } from './src/utils/compare.ts'
-import type { Result } from './src/utils/safe.ts'
+import type { ComparisonResult } from './src/utils/compare.ts'
 import { safeAsync } from './src/utils/safe.ts'
 
-// resolve instruction files from explicit paths or opencode.json discovery
-const resolveFiles = async (directory: string, filesArg?: string): Promise<Result<InstructionFile[]>> => {
-  if (filesArg) {
-    const paths = filesArg.split(',').map((p) => p.trim()).filter((p) => p.length > 0)
-    if (paths.length === 0) {
-      return { data: null, error: 'No valid file paths provided' }
-    }
-    return { data: await readFilePaths(directory, paths), error: null }
-  }
-
-  return await discover(directory)
-}
-
-const ERROR_LABELS: Record<Exclude<FileResult['status'], 'success'>, string> = {
-  readError: 'Read failed',
-  parseError: 'Parse failed',
-  formatError: 'Format failed',
-  writeError: 'Write failed',
-}
-
-// format a file result into a markdown status line
-const formatFileResult = (result: FileResult): string => {
-  if (result.status === 'success') {
-    return '**' + result.path + '**: ' + result.rulesCount + ' rules written'
-  }
-  return '**' + result.path + '**: ' + ERROR_LABELS[result.status] + ' - ' + result.error
-}
-
-// append comparison table section to output lines
-const appendComparisonTable = (lines: string[], comparisons: ComparisonResult[]): void => {
-  if (comparisons.length === 0) {
-    return
-  }
-  lines.push('')
-  lines.push('## Comparison')
-  lines.push('```')
-  lines.push(buildTable(comparisons))
-  lines.push('```')
-  lines.push('')
-  lines.push('IMPORTANT: Show the comparison table above to the user exactly as-is.')
-}
 const plugin: Plugin = async ({ directory, client }) => {
   return {
     tool: {
@@ -136,8 +95,15 @@ const plugin: Plugin = async ({ directory, client }) => {
               })
             )
 
-            // build comparison table
-            appendComparisonTable(results, comparisons)
+            // send comparison table directly to chat
+            const tableSection = buildComparisonSection(comparisons)
+            if (tableSection.length > 0) {
+              await sendResult({
+                client,
+                sessionID: context.sessionID,
+                text: tableSection.join('\n'),
+              })
+            }
 
             return results.join('\n')
           } catch (err) {

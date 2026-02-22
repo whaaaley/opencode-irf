@@ -88,6 +88,13 @@ irf-rewrite --files fixtures/testing.md        # single file, balanced mode
 irf-rewrite --files a.md,b.md --mode verbose   # multiple files, verbose output
 ```
 
+### Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | string | No | Output format: verbose, balanced, or concise (default: balanced) |
+| `files` | string | No | Comma-separated file paths to process instead of discovering from opencode.json |
+
 ## Theoretical Foundation
 
 IRF is grounded in [speech act theory](https://en.wikipedia.org/wiki/Speech_act) and [deontic logic](https://en.wikipedia.org/wiki/Deontic_logic).

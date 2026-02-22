@@ -82,17 +82,16 @@ type PromptWithRetryOptions<T> = {
 
 // prompt the LLM and validate the response, retrying on failure
 export const promptWithRetry = async <T>(options: PromptWithRetryOptions<T>): Promise<Result<T>> => {
-  const { client, sessionId, initialPrompt, schema, model } = options
-  let prompt = initialPrompt
+  let prompt = options.initialPrompt
   let lastError = ''
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const response = await client.session.prompt({
-      path: { id: sessionId },
+    const response = await options.client.session.prompt({
+      path: { id: options.sessionId },
       body: {
         parts: [{ type: 'text', text: prompt }],
         tools: {},
-        model,
+        model: options.model,
       },
     })
 
@@ -137,7 +136,7 @@ export const promptWithRetry = async <T>(options: PromptWithRetryOptions<T>): Pr
 
     // validate against schema
     const cleaned = stripCodeFences(text)
-    const validation = validateJson(cleaned, schema)
+    const validation = validateJson(cleaned, options.schema)
     if (validation.error) {
       const errorMsg = formatValidationError(validation)
       lastError = errorMsg + ' | raw: ' + cleaned.slice(0, 200)
