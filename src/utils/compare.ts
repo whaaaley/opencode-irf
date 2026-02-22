@@ -147,8 +147,10 @@ export const buildTable = (rows: TableRow[]): string => {
   }
 
   const summary = (totals.totalDifference > 0 ? 'SAVED ' : 'INCREASED ')
-    + Math.abs(totals.totalDifference) + ' bytes ('
-    + Math.abs(totals.totalPercentChange).toFixed(1) + '%)'
+    + Math.abs(totals.totalDifference)
+    + ' bytes ('
+    + Math.abs(totals.totalPercentChange).toFixed(1)
+    + '%)'
 
   return lines.join('\n') + '\n\n' + summary
 }

@@ -1,27 +1,17 @@
-import type { PluginInput } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
 import { basename } from 'node:path'
 import { appendRules } from './append.ts'
-import { sendResult } from './opencode/notify.ts'
-import { type FileResult, processFile, type PromptFn } from './process.ts'
-import { processPrompt } from './process-prompt.ts'
-import { type FormatMode, isFormatMode } from './prompt.ts'
+import { formatPrompt } from './format-prompt.ts'
+import { type FormatMode, isFormatMode } from './format.ts'
+import { type FileResult, processFile } from './process.ts'
+import { ParsedPromptSchema, promptSchemaExample } from './prompt-schema.ts'
 import { resolveFiles } from './resolve.ts'
-import { detectModel, promptWithRetry } from './session.ts'
+import { ParsedSchema, parseSchemaExample } from './rule-schema.ts'
 import { buildTable, type TableRow } from './utils/compare.ts'
-import { safeAsync } from './utils/safe.ts'
-
-type Client = PluginInput['client']
-
-type ToolDeps = {
-  directory: string
-  client: Client
-}
+import { formatValidationError, validateJson } from './utils/validate.ts'
 
 const ERROR_LABELS: Record<string, string> = {
   readError: 'Read failed',
-  parseError: 'Parse failed',
-  formatError: 'Format failed',
   writeError: 'Write failed',
 }
 
@@ -43,274 +33,223 @@ const toTableRow = (result: FileResult): TableRow => {
   }
 }
 
-type CreateSessionSuccess = {
-  ok: true
-  sessionId: string
-  prompt: PromptFn
+const RULE_SCHEMA_DESC = [
+  'Array of parsed rules. Each rule: {',
+  '  strength: obligatory|permissible|forbidden|optional|supererogatory|indifferent|omissible,',
+  '  action: imperative verb describing what to do,',
+  '  target: what the action applies to,',
+  '  context: (optional) when/where the rule applies,',
+  '  reason: why the rule exists',
+  '}',
+  'Example: ' + parseSchemaExample,
+].join('\n')
+
+const TASK_SCHEMA_DESC = [
+  'Array of parsed tasks. Each task: {',
+  '  intent: clear directive of what to do,',
+  '  targets: files/systems involved (default []),',
+  '  constraints: conditions/requirements (default []),',
+  '  context: (optional) background rationale,',
+  '  subtasks: nested tasks (default [])',
+  '}',
+  'Example: ' + promptSchemaExample,
+].join('\n')
+
+type DiscoverToolOptions = {
+  description: string
+  directory: string
+  discovered: Set<string>
 }
 
-type CreateSessionError = {
-  ok: false
-  error: string
-}
+export const createDiscoverTool = (options: DiscoverToolOptions) => {
+  return tool({
+    description: options.description,
+    args: {
+      files: tool.schema
+        .string()
+        .optional()
+        .describe('Comma-separated file paths to read instead of discovering from opencode.json'),
+    },
+    async execute(args) {
+      const resolved = await resolveFiles(options.directory, args.files)
+      if (resolved.error !== null) {
+        return resolved.error
+      }
 
-type CreateSessionResult = CreateSessionSuccess | CreateSessionError
+      if (resolved.data.length === 0) {
+        return 'No instruction files found'
+      }
 
-type CreateSessionOptions = {
-  client: Client
-  sessionID: string
-  title: string
-  toolName: string
-}
+      for (const file of resolved.data) {
+        options.discovered.add(file.path)
+      }
 
-const createSession = async (options: CreateSessionOptions): Promise<CreateSessionResult> => {
-  const model = await detectModel(options.client, options.sessionID)
-  if (!model) {
-    return {
-      ok: false,
-      error: 'Could not detect current model. Send a message first, then call ' + options.toolName + '.',
-    }
-  }
+      const sections = resolved.data.map((file) => {
+        if (file.error) {
+          return '## ' + file.path + '\n\nError: ' + file.error
+        }
 
-  const sessionResult = await options.client.session.create({ body: { title: options.title } })
-  if (!sessionResult.data) {
-    return {
-      ok: false,
-      error: 'Failed to create internal session',
-    }
-  }
+        if (file.content.length === 0) {
+          return '## ' + file.path + '\n\n(empty file)'
+        }
 
-  const sessionId = sessionResult.data.id
+        return '## ' + file.path + '\n\n' + file.content
+      })
 
-  const prompt: PromptFn = (text, schema) => (
-    promptWithRetry({
-      client: options.client,
-      sessionId,
-      initialPrompt: text,
-      schema,
-      model,
-    })
-  )
-
-  return {
-    ok: true,
-    sessionId,
-    prompt,
-  }
+      return sections.join('\n\n---\n\n')
+    },
+  })
 }
 
 type RewriteToolOptions = {
   description: string
-  deps: ToolDeps
+  directory: string
+  discovered: Set<string>
 }
 
 export const createRewriteTool = (options: RewriteToolOptions) => {
   return tool({
     description: options.description,
     args: {
-      mode: tool.schema.string().optional().describe(
-        'Output format: verbose, balanced, or concise (default: balanced)',
-      ),
-      files: tool.schema.string().optional().describe(
-        'Comma-separated file paths to process instead of discovering from opencode.json',
-      ),
+      rules: tool.schema.string().describe(RULE_SCHEMA_DESC),
+      mode: tool.schema
+        .string()
+        .optional()
+        .describe('Output format: verbose, balanced, or concise (default: balanced)'),
+      files: tool.schema
+        .string()
+        .optional()
+        .describe('Comma-separated file paths to process instead of discovering from opencode.json'),
     },
     async execute(args, context) {
-      const mode = isFormatMode(args.mode) ? args.mode : 'balanced'
-
-      try {
-        const resolved = await resolveFiles(options.deps.directory, args.files)
-        if (resolved.error !== null) {
-          return resolved.error
-        }
-
-        const session = await createSession({
-          client: options.deps.client,
-          sessionID: context.sessionID,
-          title: 'SAT Rewrite',
-          toolName: 'rewrite-instructions',
-        })
-        if (!session.ok) {
-          return session.error
-        }
-
-        const fileResults: FileResult[] = []
-
-        for (const file of resolved.data) {
-          if (context.abort.aborted) {
-            break
-          }
-
-          fileResults.push(await processFile({
-            file,
-            prompt: session.prompt,
-            mode,
-          }))
-        }
-
-        await safeAsync(() => options.deps.client.session.delete({
-          path: { id: session.sessionId },
-        }))
-
-        const table = buildTable(fileResults.map(toTableRow))
-
-        if (table.length > 0) {
-          await sendResult({
-            client: options.deps.client,
-            sessionID: context.sessionID,
-            text: table,
-          })
-        }
-
-        return table
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return 'rewrite-instructions error: ' + msg
+      if (options.discovered.size === 0) {
+        return 'Call discover-instructions first to read the instruction files before rewriting.'
       }
+
+      const mode: FormatMode = isFormatMode(args.mode) ? args.mode : 'balanced'
+
+      const validated = validateJson(args.rules, ParsedSchema)
+      if (validated.error !== null) {
+        return formatValidationError(validated)
+      }
+
+      const resolved = await resolveFiles(options.directory, args.files)
+      if (resolved.error !== null) {
+        return resolved.error
+      }
+
+      const fileResults: Array<FileResult> = []
+
+      for (const file of resolved.data) {
+        if (context.abort.aborted) {
+          break
+        }
+
+        fileResults.push(
+          await processFile({
+            file,
+            rules: validated.data,
+            mode,
+          }),
+        )
+      }
+
+      return buildTable(fileResults.map(toTableRow))
     },
   })
 }
 
 type AppendToolOptions = {
   description: string
-  deps: ToolDeps
-  toolName: string
-  sessionTitle: string
-  defaultMode: FormatMode
-  successPrefix: string
-  hasMode: boolean
+  directory: string
+  discovered: Set<string>
 }
 
 export const createAppendTool = (options: AppendToolOptions) => {
   return tool({
     description: options.description,
     args: {
-      input: tool.schema.string().describe(
-        'Unstructured text describing the rule(s) to add',
-      ),
-      file: tool.schema.string().optional().describe(
-        'File path to append to. If omitted, uses the first discovered instruction file.',
-      ),
-      ...(options.hasMode
-        ? {
-          mode: tool.schema.string().optional().describe(
-            'Output format: verbose, balanced, or concise (default: balanced)',
-          ),
-        }
-        : {}),
+      input: tool.schema
+        .string()
+        .describe('The original unstructured text that was parsed into rules'),
+      rules: tool.schema.string().describe(RULE_SCHEMA_DESC),
+      file: tool.schema
+        .string()
+        .optional()
+        .describe('File path to append to. If omitted, uses the first discovered instruction file.'),
+      mode: tool.schema
+        .string()
+        .optional()
+        .describe('Output format: verbose, balanced, or concise (default: balanced)'),
     },
-    async execute(args, context) {
-      const mode: FormatMode = options.hasMode && isFormatMode(args.mode) ? args.mode : options.defaultMode
-
-      try {
-        let filePath = args.file
-
-        if (!filePath) {
-          const resolved = await resolveFiles(options.deps.directory)
-          if (resolved.error !== null) {
-            return resolved.error
-          }
-
-          const first = resolved.data[0]
-          if (!first) {
-            return 'No instruction files found in opencode.json'
-          }
-
-          filePath = first.path
-        }
-
-        const session = await createSession({
-          client: options.deps.client,
-          sessionID: context.sessionID,
-          title: options.sessionTitle,
-          toolName: options.toolName,
-        })
-        if (!session.ok) {
-          return session.error
-        }
-
-        const result = await appendRules({
-          input: args.input,
-          filePath,
-          directory: options.deps.directory,
-          prompt: session.prompt,
-          mode,
-        })
-
-        await safeAsync(() => options.deps.client.session.delete({
-          path: { id: session.sessionId },
-        }))
-
-        if (result.status !== 'success') {
-          return result.status + ': ' + result.error
-        }
-
-        const msg = options.successPrefix + result.rulesCount + ' rule(s) to ' + result.path
-
-        await sendResult({
-          client: options.deps.client,
-          sessionID: context.sessionID,
-          text: msg,
-        })
-
-        return msg
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return options.toolName + ' error: ' + msg
+    async execute(args) {
+      if (options.discovered.size === 0) {
+        return 'Call discover-instructions first to read the instruction files before appending.'
       }
+
+      const mode: FormatMode = isFormatMode(args.mode) ? args.mode : 'balanced'
+
+      const validated = validateJson(args.rules, ParsedSchema)
+      if (validated.error !== null) {
+        return formatValidationError(validated)
+      }
+
+      let filePath = args.file
+
+      if (!filePath) {
+        const resolved = await resolveFiles(options.directory)
+        if (resolved.error !== null) {
+          return resolved.error
+        }
+
+        const first = resolved.data[0]
+        if (!first) {
+          return 'No instruction files found in opencode.json'
+        }
+
+        filePath = first.path
+      }
+
+      const result = await appendRules({
+        filePath,
+        rules: validated.data,
+        mode,
+      })
+
+      if (result.status !== 'success') {
+        return result.status + ': ' + result.error
+      }
+
+      return 'Added ' + result.rulesCount + ' rule(s) to ' + result.path
     },
   })
 }
 
 type RefineToolOptions = {
   description: string
-  deps: ToolDeps
 }
 
 export const createRefineTool = (options: RefineToolOptions) => {
   return tool({
     description: options.description,
     args: {
-      input: tool.schema.string().describe(
-        'Raw unstructured user input to refine into a structured prompt',
-      ),
+      input: tool.schema.string()
+        .describe('The original unstructured user input that was decomposed'),
+      tasks: tool.schema.string().describe(TASK_SCHEMA_DESC),
     },
-    async execute(args, context) {
-      try {
-        const session = await createSession({
-          client: options.deps.client,
-          sessionID: context.sessionID,
-          title: 'SAT Refine',
-          toolName: 'refine-prompt',
-        })
-        if (!session.ok) {
-          return session.error
-        }
-
-        const result = await processPrompt({
-          input: args.input,
-          prompt: session.prompt,
-        })
-
-        await safeAsync(() => options.deps.client.session.delete({
-          path: { id: session.sessionId },
-        }))
-
-        if (result.status !== 'success') {
-          return 'refine-prompt parse error: ' + result.error
-        }
-
-        await sendResult({
-          client: options.deps.client,
-          sessionID: context.sessionID,
-          text: result.formatted,
-        })
-
-        return result.formatted
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return 'refine-prompt error: ' + msg
+    async execute(args) {
+      const validated = validateJson(args.tasks, ParsedPromptSchema)
+      if (validated.error !== null) {
+        return formatValidationError(validated)
       }
+
+      const formatted = formatPrompt(validated.data)
+
+      if (formatted.length === 0) {
+        return 'No tasks found in the parsed input'
+      }
+
+      return formatted
     },
   })
 }

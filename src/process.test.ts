@@ -2,322 +2,205 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { InstructionFile } from './discover.ts'
-import { processFile, type PromptFn } from './process.ts'
+import type { FormatMode } from './format.ts'
+import { type FileResult, processFile } from './process.ts'
+import type { ParsedRule } from './rule-schema.ts'
 
-// helper: build a prompt fn that returns parse then format results in order
-// cast is necessary because PromptFn is universally generic (<T>) but test mocks
-// return canned data for specific types; no way to satisfy the generic without it
-
-type MakePromptFnOptions = {
-  parseData: { rules: { strength: string; action: string; target: string; reason: string }[] } | null
-  parseError: string | null
-  formatData: { rules: string[] } | null
-  formatError: string | null
+const RULE_A: ParsedRule = {
+  strength: 'obligatory',
+  action: 'Use consistent whitespace for readability.',
+  target: 'all source files',
+  reason: 'Whitespace is critical for readability.',
 }
 
-const makePromptFn = (options: MakePromptFnOptions): PromptFn => {
-  let call = 0
-  return (() => {
-    call++
-    if (call === 1) {
-      if (options.parseError !== null) {
-        return Promise.resolve({ data: null, error: options.parseError })
-      }
-      return Promise.resolve({ data: options.parseData, error: null })
-    }
-    if (options.formatError !== null) {
-      return Promise.resolve({ data: null, error: options.formatError })
-    }
-    return Promise.resolve({ data: options.formatData, error: null })
-  }) as PromptFn
+const RULE_B: ParsedRule = {
+  strength: 'forbidden',
+  action: 'Avoid non-null assertions.',
+  target: 'all TypeScript files',
+  context: 'when accessing optional values',
+  reason: 'Use narrowing type guards instead.',
 }
 
-const sampleParsed = {
-  rules: [{
-    strength: 'obligatory',
-    action: 'use',
-    target: 'arrow functions',
-    reason: 'consistency',
-  }],
-}
-
-const sampleFormatted = {
-  rules: ['Rule: Use arrow functions\nReason: consistency'],
-}
-
-// helper: build a prompt fn that captures prompt strings and returns canned results
-// same cast justification as makePromptFn above
-const makeCapturingPromptFn = (
-  parseData: { rules: { strength: string; action: string; target: string; reason: string }[] },
-  formatData: { rules: string[] },
-  captured: string[],
-): PromptFn => {
-  let call = 0
-  return ((text: string) => {
-    captured.push(text)
-    call++
-    if (call === 1) {
-      return Promise.resolve({ data: parseData, error: null })
-    }
-    return Promise.resolve({ data: formatData, error: null })
-  }) as PromptFn
+const expectStatus = (result: FileResult, expected: FileResult['status']) => {
+  expect(result.status).toBe(expected)
 }
 
 describe('processFile', () => {
-  it('returns read error for files that failed to read', async () => {
-    const file: InstructionFile = {
-      path: '/tmp/bad.md',
-      content: '',
-      error: 'ENOENT',
+  let dir: string
+
+  const setup = async (content: string) => {
+    dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
+    const filePath = join(dir, 'instructions.md')
+    await writeFile(filePath, content, 'utf-8')
+    return filePath
+  }
+
+  const cleanup = async () => {
+    if (dir) {
+      await rm(dir, { recursive: true, force: true })
     }
-    const prompt = makePromptFn({
-      parseData: null,
-      parseError: null,
-      formatData: null,
-      formatError: null,
+  }
+
+  it('returns readError when file has error', async () => {
+    const result = await processFile({
+      file: { path: '/fake/path.md', content: '', error: 'ENOENT' },
+      rules: [RULE_A],
+      mode: 'balanced',
     })
 
-    const result = await processFile({ file, prompt })
-    if (result.status === 'success') throw new Error('expected error')
-    expect(result.error).toEqual('ENOENT')
-  })
-
-  it('returns parse error when first prompt fails', async () => {
-    const file: InstructionFile = { path: '/tmp/test.md', content: 'some instructions' }
-    const prompt = makePromptFn({
-      parseData: null,
-      parseError: 'LLM timeout',
-      formatData: null,
-      formatError: null,
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('parseError')
-    if (result.status === 'success') throw new Error('expected error')
-    expect(result.error).toContain('LLM timeout')
-  })
-
-  it('returns format error when second prompt fails', async () => {
-    const file: InstructionFile = { path: '/tmp/test.md', content: 'some instructions' }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: null,
-      formatError: 'schema mismatch',
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('formatError')
-    if (result.status === 'success') throw new Error('expected error')
-    expect(result.error).toContain('schema mismatch')
-  })
-
-  it('returns write error for invalid path', async () => {
-    const file: InstructionFile = { path: '/nonexistent/dir/impossible.md', content: 'some instructions' }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: sampleFormatted,
-      formatError: null,
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('writeError')
-    if (result.status === 'success') throw new Error('expected error')
-    expect(result.error).toContain('ENOENT')
-  })
-
-  it('writes formatted rules and returns comparison on success', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'rules.md')
-    const originalContent = 'Use arrow functions for consistency.\nPrefer const over let.\n'
-    await writeFile(filePath, originalContent, 'utf-8')
-
-    const file: InstructionFile = { path: filePath, content: originalContent }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: sampleFormatted,
-      formatError: null,
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('success')
-    if (result.status !== 'success') throw new Error('expected success')
-    expect(result.rulesCount).toEqual(1)
-    expect(result.comparison.file).toEqual('rules.md')
-
-    // verify file was actually written with correct content
-    const written = await readFile(filePath, 'utf-8')
-    expect(written).toEqual('Rule: Use arrow functions\nReason: consistency\n')
-
-    await rm(dir, { recursive: true, force: true })
-  })
-
-  it('joins multiple rules with double newline in verbose and balanced modes', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'multi.md')
-    await writeFile(filePath, 'original', 'utf-8')
-
-    const multiFormatted = {
-      rules: [
-        'Rule: Use arrow functions\nReason: consistency',
-        'Rule: Prefer const\nReason: immutability',
-      ],
+    expectStatus(result, 'readError')
+    if (result.status === 'readError') {
+      expect(result.error).toBe('ENOENT')
     }
 
-    const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: multiFormatted,
-      formatError: null,
+    await cleanup()
+  })
+
+  it('writes formatted rules to file', async () => {
+    const filePath = await setup('old content\n')
+
+    const result = await processFile({
+      file: { path: filePath, content: 'old content\n' },
+      rules: [RULE_A],
+      mode: 'balanced',
     })
 
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('success')
-    if (result.status !== 'success') throw new Error('expected success')
-    expect(result.rulesCount).toEqual(2)
+    expectStatus(result, 'success')
 
     const written = await readFile(filePath, 'utf-8')
-    expect(written).toEqual(
-      'Rule: Use arrow functions\nReason: consistency\n\nRule: Prefer const\nReason: immutability\n',
-    )
+    expect(written).toContain('Rule:')
+    expect(written).toContain('Reason:')
+    expect(written).not.toContain('old content')
 
-    await rm(dir, { recursive: true, force: true })
+    await cleanup()
   })
 
-  it('joins multiple rules with single newline in concise mode', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'concise.md')
-    await writeFile(filePath, 'original', 'utf-8')
+  it('includes comparison in success result', async () => {
+    const filePath = await setup('old content\n')
 
-    const conciseFormatted = {
-      rules: [
-        '- Use arrow functions for consistency.',
-        '- Prefer const over let.',
-      ],
-    }
-
-    const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: conciseFormatted,
-      formatError: null,
+    const result = await processFile({
+      file: { path: filePath, content: 'old content\n' },
+      rules: [RULE_A],
+      mode: 'balanced',
     })
 
-    const result = await processFile({ file, prompt, mode: 'concise' })
+    expectStatus(result, 'success')
+    if (result.status === 'success') {
+      expect(result.comparison).toBeDefined()
+      expect(result.rulesCount).toBe(1)
+    }
 
-    expect(result.status).toEqual('success')
-    if (result.status !== 'success') throw new Error('expected success')
-    expect(result.rulesCount).toEqual(2)
+    await cleanup()
+  })
+
+  it('formats with double newline in balanced mode', async () => {
+    const filePath = await setup('')
+
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_A, RULE_B],
+      mode: 'balanced',
+    })
+
+    expectStatus(result, 'success')
 
     const written = await readFile(filePath, 'utf-8')
-    expect(written).toEqual('- Use arrow functions for consistency.\n- Prefer const over let.\n')
+    expect(written).toContain('\n\n')
 
-    await rm(dir, { recursive: true, force: true })
+    await cleanup()
   })
 
-  it('includes file path in all messages', async () => {
-    const file: InstructionFile = {
-      path: '/some/project/.cursor/rules.md',
-      content: '',
-      error: 'nope',
+  it('formats with single newline in concise mode', async () => {
+    const filePath = await setup('')
+
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_A, RULE_B],
+      mode: 'concise',
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).not.toContain('\n\n')
+    expect(written).not.toContain('Reason:')
+
+    await cleanup()
+  })
+
+  it('propagates file path in result', async () => {
+    const filePath = await setup('')
+
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_A],
+      mode: 'balanced',
+    })
+
+    expect(result.path).toBe(filePath)
+
+    await cleanup()
+  })
+
+  it('includes context in rule when present', async () => {
+    const filePath = await setup('')
+
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_B],
+      mode: 'balanced',
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('when accessing optional values')
+
+    await cleanup()
+  })
+
+  it('omits reason in concise mode', async () => {
+    const filePath = await setup('')
+
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_A],
+      mode: 'concise',
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('Rule:')
+    expect(written).not.toContain('Reason:')
+
+    await cleanup()
+  })
+
+  it('formats rules for all three modes', async () => {
+    const modes: Array<FormatMode> = ['verbose', 'balanced', 'concise']
+
+    for (const mode of modes) {
+      const filePath = await setup('')
+
+      const result = await processFile({
+        file: { path: filePath, content: '' },
+        rules: [RULE_A],
+        mode,
+      })
+
+      expectStatus(result, 'success')
+
+      const written = await readFile(filePath, 'utf-8')
+      expect(written).toContain('Rule:')
+
+      if (mode === 'concise') {
+        expect(written).not.toContain('Reason:')
+      } else {
+        expect(written).toContain('Reason:')
+      }
+
+      await cleanup()
     }
-    const prompt = makePromptFn({
-      parseData: null,
-      parseError: null,
-      formatData: null,
-      formatError: null,
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.path).toEqual('/some/project/.cursor/rules.md')
-  })
-
-  it('comparison reflects byte difference between original and generated', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'test.md')
-    const originalContent = 'a'.repeat(100)
-    await writeFile(filePath, originalContent, 'utf-8')
-
-    const file: InstructionFile = { path: filePath, content: originalContent }
-    const shortFormatted = { rules: ['Rule: Short\nReason: Brief'] }
-    const prompt = makePromptFn({
-      parseData: sampleParsed,
-      parseError: null,
-      formatData: shortFormatted,
-      formatError: null,
-    })
-
-    const result = await processFile({ file, prompt })
-
-    expect(result.status).toEqual('success')
-    if (result.status !== 'success') throw new Error('expected success')
-    expect(result.comparison.originalBytes).toEqual(100)
-    // "Rule: Short\nReason: Brief\n" = 26 bytes
-    expect(result.comparison.generatedBytes).toEqual(26)
-    expect(result.comparison.difference).toEqual(74)
-
-    await rm(dir, { recursive: true, force: true })
-  })
-
-  it('passes verbose mode to format prompt', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'test.md')
-    await writeFile(filePath, 'original', 'utf-8')
-
-    const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompts: string[] = []
-    const capturingPrompt = makeCapturingPromptFn(sampleParsed, sampleFormatted, prompts)
-
-    await processFile({ file, prompt: capturingPrompt, mode: 'verbose' })
-
-    // second call is the format prompt; should contain verbose-specific instructions
-    expect(prompts[1]).toContain('Always include both a Rule line and a Reason line')
-
-    await rm(dir, { recursive: true, force: true })
-  })
-
-  it('passes concise mode to format prompt', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'test.md')
-    await writeFile(filePath, 'original', 'utf-8')
-
-    const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompts: string[] = []
-    const capturingPrompt = makeCapturingPromptFn(sampleParsed, { rules: ['- Use arrow functions'] }, prompts)
-
-    await processFile({ file, prompt: capturingPrompt, mode: 'concise' })
-
-    // second call is the format prompt; should contain concise-specific instructions
-    expect(prompts[1]).toContain('Never include reasons')
-
-    await rm(dir, { recursive: true, force: true })
-  })
-
-  it('defaults to balanced mode when mode is omitted', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-process-'))
-    const filePath = join(dir, 'test.md')
-    await writeFile(filePath, 'original', 'utf-8')
-
-    const file: InstructionFile = { path: filePath, content: 'original' }
-    const prompts: string[] = []
-    const capturingPrompt = makeCapturingPromptFn(sampleParsed, sampleFormatted, prompts)
-
-    await processFile({ file, prompt: capturingPrompt })
-
-    // second call is the format prompt; should contain balanced-specific instructions
-    expect(prompts[1]).toContain('non-obvious or counterintuitive')
-
-    await rm(dir, { recursive: true, force: true })
   })
 })

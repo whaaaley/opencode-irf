@@ -1,13 +1,24 @@
 import type { Plugin } from '@opencode-ai/plugin'
-import { createAppendTool, createRefineTool, createRewriteTool } from './src/tools.ts'
+import { createAppendTool, createDiscoverTool, createRefineTool, createRewriteTool } from './src/tools.ts'
 
-const plugin: Plugin = async ({ directory, client }) => {
-  const deps = { directory, client }
+const plugin: Plugin = async ({ directory }) => {
+  const discovered = new Set<string>()
 
   return {
     tool: {
+      'discover-instructions': createDiscoverTool({
+        directory,
+        discovered,
+        description: [
+          '- Discover instruction files from opencode.json configuration.',
+          '- Read discovered instruction files and return their paths and contents.',
+          '- Optionally accept a files parameter to read specific files instead of running discovery.',
+        ].join('\n'),
+      }),
+
       'rewrite-instructions': createRewriteTool({
-        deps,
+        directory,
+        discovered,
         description: [
           '- Discover instruction files from opencode.json configuration.',
           '- Parse discovered instruction files into structured rules.',
@@ -20,12 +31,8 @@ const plugin: Plugin = async ({ directory, client }) => {
       }),
 
       'add-instruction': createAppendTool({
-        deps,
-        toolName: 'add-instruction',
-        sessionTitle: 'SAT Add',
-        defaultMode: 'balanced',
-        hasMode: true,
-        successPrefix: 'Added',
+        directory,
+        discovered,
         description: [
           '- Parse unstructured input into structured rules.',
           '- Format parsed rules after parsing unstructured input into structured rules.',
@@ -37,23 +44,7 @@ const plugin: Plugin = async ({ directory, client }) => {
         ].join('\n'),
       }),
 
-      'automatic-rule': createAppendTool({
-        deps,
-        toolName: 'automatic-rule',
-        sessionTitle: 'SAT Candidate',
-        defaultMode: 'balanced',
-        hasMode: false,
-        successPrefix: 'Learned',
-        description: [
-          '- Detect user corrections when the user says something was done wrong, expresses a preference about how code should be written, or gives feedback that implies a repeatable guideline.',
-          '- Extract the implicit rule from the correction after detecting a user correction or preference.',
-          '- Persist the extracted rule as a new instruction rule.',
-          '- Append the new rule to the instruction file.',
-        ].join('\n'),
-      }),
-
       'refine-prompt': createRefineTool({
-        deps,
         description: [
           '- Restructure messy, ambiguous, or voice-transcribed user input before starting work when the message is vague, run-on, contains multiple interleaved requests, or reads like unpunctuated speech.',
           '- Invoke this tool BEFORE starting work on vague, run-on, multi-request, or speech-like user messages.',

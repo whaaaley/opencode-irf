@@ -14,26 +14,25 @@ type BuildNodeOptions = {
 }
 
 const buildNode = (options: BuildNodeOptions): TreeNode => {
-  const { task, counter } = options
-  const label = String(counter.value) + '. ' + task.intent
-  counter.value++
+  const label = String(options.counter.value) + '. ' + options.task.intent
+  options.counter.value++
 
   const metaLines: Array<string> = []
 
-  if (task.targets.length > 0) {
-    metaLines.push('> Targets: ' + task.targets.join(', '))
+  if (options.task.targets.length > 0) {
+    metaLines.push('> Targets: ' + options.task.targets.join(', '))
   }
 
-  if (task.constraints.length > 0) {
-    metaLines.push('> Constraints: ' + task.constraints.join(', '))
+  if (options.task.constraints.length > 0) {
+    metaLines.push('> Constraints: ' + options.task.constraints.join(', '))
   }
 
-  if (task.context) {
-    metaLines.push('> Context: ' + task.context)
+  if (options.task.context) {
+    metaLines.push('> Context: ' + options.task.context)
   }
 
-  const children = task.subtasks.map((subtask) => {
-    return buildNode({ task: subtask, counter })
+  const children = options.task.subtasks.map((subtask) => {
+    return buildNode({ task: subtask, counter: options.counter })
   })
 
   return { label, metaLines, children }
@@ -60,43 +59,52 @@ type RenderOptions = {
 }
 
 const renderNode = (options: RenderOptions): Array<string> => {
-  const { node, prefix, childPrefix } = options
-  const hasChildren = node.children.length > 0
-  const firstLine = prefix + node.label
+  const hasChildren = options.node.children.length > 0
+  const firstLine = options.prefix + options.node.label
   const lines: Array<string> = [firstLine]
 
-  const numEnd = node.label.indexOf('. ') + 2
-  const textStart = prefix.length + numEnd
+  const numEnd = options.node.label.indexOf('. ') + 2
+  const textStart = options.prefix.length + numEnd
   const pipe = hasChildren ? '│' : ' '
-  const padLen = textStart - childPrefix.length - 1
-  const metaPad = childPrefix + pipe + ' '.repeat(padLen > 0 ? padLen : 0)
+  const padLen = textStart - options.childPrefix.length - 1
+  const metaPad = options.childPrefix + pipe + ' '.repeat(padLen > 0 ? padLen : 0)
 
-  for (const meta of node.metaLines) {
+  for (const meta of options.node.metaLines) {
     lines.push(metaPad + meta)
   }
 
   if (hasChildren) {
-    lines.push(childPrefix + '│')
+    lines.push(options.childPrefix + '│')
 
-    for (let i = 0; i < node.children.length; i++) {
-      const child = node.children[i]
+    for (let i = 0; i < options.node.children.length; i++) {
+      const child = options.node.children[i]
       if (!child) continue
 
       if (i > 0) {
-        lines.push(childPrefix + '│')
+        lines.push(options.childPrefix + '│')
       }
 
-      const isLast = i === node.children.length - 1
+      const isLast = i === options.node.children.length - 1
       const childHasChildren = child.children.length > 0
-      const connector = (isLast ? '└──' : '├──') + (childHasChildren ? '┬ ' : '─ ')
-      const continuation = isLast
-        ? (childHasChildren ? '   ' : '    ')
-        : (childHasChildren ? '│  ' : '│   ')
+
+      let connector = isLast ? '└──' : '├──'
+      connector += childHasChildren ? '┬ ' : '─ '
+
+      let continuation = ''
+      if (isLast && childHasChildren) {
+        continuation = '   '
+      } else if (isLast) {
+        continuation = '    '
+      } else if (childHasChildren) {
+        continuation = '│  '
+      } else {
+        continuation = '│   '
+      }
 
       const childLines = renderNode({
         node: child,
-        prefix: childPrefix + connector,
-        childPrefix: childPrefix + continuation,
+        prefix: options.childPrefix + connector,
+        childPrefix: options.childPrefix + continuation,
       })
 
       lines.push(...childLines)

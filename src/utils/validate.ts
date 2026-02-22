@@ -17,7 +17,10 @@ type ValidateJsonSchemaError = {
   issues: z.core.$ZodIssue[]
 }
 
-type ValidateJsonResult<T> = ValidateJsonSuccess<T> | ValidateJsonParseError | ValidateJsonSchemaError
+type ValidateJsonResult<T> =
+  | ValidateJsonSuccess<T>
+  | ValidateJsonParseError
+  | ValidateJsonSchemaError
 
 export const validateJson = <T>(json: string, schema: z.ZodType<T>): ValidateJsonResult<T> => {
   const parseResult = safe(() => JSON.parse(json))
@@ -48,7 +51,11 @@ export const formatValidationError = (result: ValidateJsonParseError | ValidateJ
     return 'Invalid JSON. Return valid JSON.'
   }
 
-  const issues = result.issues.map((i) => '  - ' + i.path.join('.') + ': ' + i.message).join('\n')
+  const issues = result.issues
+    .map((i) => '  - ' + i.path.join('.') + ': ' + i.message)
+    .join('\n')
 
-  return 'Schema validation failed:\n' + issues + '\n\nFix the issues and try again.'
+  return (
+    'Schema validation failed:\n' + issues + '\n\nFix the issues and try again.'
+  )
 }

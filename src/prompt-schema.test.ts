@@ -134,11 +134,13 @@ describe('ParsedTaskSchema', () => {
   })
 
   it('rejects missing intent', () => {
-    expect(() => ParsedTaskSchema.parse({
-      targets: [],
-      constraints: [],
-      subtasks: [],
-    })).toThrow()
+    expect(() =>
+      ParsedTaskSchema.parse({
+        targets: [],
+        constraints: [],
+        subtasks: [],
+      })
+    ).toThrow()
   })
 })
 

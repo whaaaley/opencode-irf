@@ -66,3 +66,14 @@ Reason: Prevents invalid states and enables exhaustive narrowing.
 
 Rule: When an if statement is a guard that checks the variable declared in the immediately preceding const/let, do not insert a blank line between the declaration and the if.
 Reason: The declaration and its guard check are logically coupled and should be visually grouped by touching.
+
+Rule: Use dprint for formatting, not prettier.
+Reason: The project uses dprint as its code formatter.
+
+Rule: When asked to format code, run `bun run dprint fmt`.
+
+Rule: Do not split function parameters across multiple lines.
+Reason: To keep function signatures compact and scannable on a single line.
+
+Rule: Do not wrap expect statements inside tests with if statements. Use expect statements directly as guards instead.
+Reason: Conditional branches hide test failures silently; expect statements surface them.
