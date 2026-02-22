@@ -1,7 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { type FormatMode, formatRules } from './format.ts'
-import type { ParsedRule } from './rule-schema.ts'
-import { safeAsync } from './utils/safe.ts'
+import { safeAsync } from './safe.ts'
 
 type AppendResultSuccess = {
   status: 'success'
@@ -21,27 +19,16 @@ type AppendResultWriteError = {
   error: string
 }
 
-export type AppendResult =
-  | AppendResultSuccess
-  | AppendResultReadError
-  | AppendResultWriteError
+export type AppendResult = AppendResultSuccess | AppendResultReadError | AppendResultWriteError
 
 type AppendRulesOptions = {
   filePath: string
-  rules: Array<ParsedRule>
-  mode: FormatMode
+  rules: Array<string>
 }
 
-const computeSeparator = (existing: string, mode: FormatMode): string => {
+const computeSeparator = (existing: string): string => {
   if (existing.length === 0) {
     return ''
-  }
-
-  if (mode === 'concise') {
-    if (existing.endsWith('\n')) {
-      return ''
-    }
-    return '\n'
   }
 
   if (existing.endsWith('\n\n')) {
@@ -65,13 +52,9 @@ export const appendRules = async (options: AppendRulesOptions): Promise<AppendRe
     }
   }
 
-  const formatted = formatRules({
-    rules: options.rules,
-    mode: options.mode,
-  })
-
+  const formatted = options.rules.join('\n\n') + '\n'
   const existing = readResult.data
-  const separator = computeSeparator(existing, options.mode)
+  const separator = computeSeparator(existing)
   const content = existing + separator + formatted
 
   const writeResult = await safeAsync(() => writeFile(options.filePath, content, 'utf-8'))

@@ -2,24 +2,17 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { FormatMode } from './format.ts'
-import { type FileResult, processFile } from './process.ts'
-import type { ParsedRule } from './rule-schema.ts'
+import { type FileResult, processFile } from './rewrite.ts'
 
-const RULE_A: ParsedRule = {
-  strength: 'obligatory',
-  action: 'Use consistent whitespace for readability.',
-  target: 'all source files',
-  reason: 'Whitespace is critical for readability.',
-}
+const RULE_A = [
+  'Rule: use consistent whitespace for readability in all source files',
+  'Reason: Whitespace is critical for readability.',
+].join('\n')
 
-const RULE_B: ParsedRule = {
-  strength: 'forbidden',
-  action: 'Avoid non-null assertions.',
-  target: 'all TypeScript files',
-  context: 'when accessing optional values',
-  reason: 'Use narrowing type guards instead.',
-}
+const RULE_B = [
+  'Rule: do not use non-null assertions in TypeScript files when accessing optional values',
+  'Reason: Use narrowing type guards instead.',
+].join('\n')
 
 const expectStatus = (result: FileResult, expected: FileResult['status']) => {
   expect(result.status).toBe(expected)
@@ -45,7 +38,6 @@ describe('processFile', () => {
     const result = await processFile({
       file: { path: '/fake/path.md', content: '', error: 'ENOENT' },
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'readError')
@@ -62,7 +54,6 @@ describe('processFile', () => {
     const result = await processFile({
       file: { path: filePath, content: 'old content\n' },
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -81,7 +72,6 @@ describe('processFile', () => {
     const result = await processFile({
       file: { path: filePath, content: 'old content\n' },
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -93,13 +83,12 @@ describe('processFile', () => {
     await cleanup()
   })
 
-  it('formats with double newline in balanced mode', async () => {
+  it('joins multiple rules with double newline', async () => {
     const filePath = await setup('')
 
     const result = await processFile({
       file: { path: filePath, content: '' },
       rules: [RULE_A, RULE_B],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -110,31 +99,12 @@ describe('processFile', () => {
     await cleanup()
   })
 
-  it('formats with single newline in concise mode', async () => {
-    const filePath = await setup('')
-
-    const result = await processFile({
-      file: { path: filePath, content: '' },
-      rules: [RULE_A, RULE_B],
-      mode: 'concise',
-    })
-
-    expectStatus(result, 'success')
-
-    const written = await readFile(filePath, 'utf-8')
-    expect(written).not.toContain('\n\n')
-    expect(written).not.toContain('Reason:')
-
-    await cleanup()
-  })
-
   it('propagates file path in result', async () => {
     const filePath = await setup('')
 
     const result = await processFile({
       file: { path: filePath, content: '' },
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expect(result.path).toBe(filePath)
@@ -142,13 +112,12 @@ describe('processFile', () => {
     await cleanup()
   })
 
-  it('includes context in rule when present', async () => {
+  it('includes context in written output', async () => {
     const filePath = await setup('')
 
     const result = await processFile({
       file: { path: filePath, content: '' },
       rules: [RULE_B],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -159,48 +128,35 @@ describe('processFile', () => {
     await cleanup()
   })
 
-  it('omits reason in concise mode', async () => {
+  it('writes rules exactly as provided', async () => {
     const filePath = await setup('')
 
     const result = await processFile({
       file: { path: filePath, content: '' },
       rules: [RULE_A],
-      mode: 'concise',
     })
 
     expectStatus(result, 'success')
 
     const written = await readFile(filePath, 'utf-8')
-    expect(written).toContain('Rule:')
-    expect(written).not.toContain('Reason:')
+    expect(written).toBe(RULE_A + '\n')
 
     await cleanup()
   })
 
-  it('formats rules for all three modes', async () => {
-    const modes: Array<FormatMode> = ['verbose', 'balanced', 'concise']
+  it('writes multiple rules joined by double newline', async () => {
+    const filePath = await setup('')
 
-    for (const mode of modes) {
-      const filePath = await setup('')
+    const result = await processFile({
+      file: { path: filePath, content: '' },
+      rules: [RULE_A, RULE_B],
+    })
 
-      const result = await processFile({
-        file: { path: filePath, content: '' },
-        rules: [RULE_A],
-        mode,
-      })
+    expectStatus(result, 'success')
 
-      expectStatus(result, 'success')
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toBe(RULE_A + '\n\n' + RULE_B + '\n')
 
-      const written = await readFile(filePath, 'utf-8')
-      expect(written).toContain('Rule:')
-
-      if (mode === 'concise') {
-        expect(written).not.toContain('Reason:')
-      } else {
-        expect(written).toContain('Reason:')
-      }
-
-      await cleanup()
-    }
+    await cleanup()
   })
 })

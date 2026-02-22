@@ -3,26 +3,12 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type AppendResult, appendRules } from './append.ts'
-import type { ParsedRule } from './rule-schema.ts'
 
-const RULE_A: ParsedRule = {
-  strength: 'obligatory',
-  action: 'Use consistent whitespace for readability.',
-  target: 'all source files',
-  reason: 'Whitespace is critical for readability.',
-}
+const RULE_A =
+  'Rule: use consistent whitespace for readability in all source files\nReason: Whitespace is critical for readability.'
+const RULE_B = 'Rule: do not use non-null assertions in TypeScript files\nReason: Use narrowing type guards instead.'
 
-const RULE_B: ParsedRule = {
-  strength: 'forbidden',
-  action: 'Avoid non-null assertions.',
-  target: 'all TypeScript files',
-  reason: 'Use narrowing type guards instead.',
-}
-
-const expectStatus = (
-  result: AppendResult,
-  expected: AppendResult['status'],
-) => {
+const expectStatus = (result: AppendResult, expected: AppendResult['status']) => {
   expect(result.status).toBe(expected)
 }
 
@@ -46,7 +32,6 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath: '/nonexistent/file.md',
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'readError')
@@ -60,7 +45,6 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -80,25 +64,23 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
 
     const written = await readFile(filePath, 'utf-8')
     expect(written).toContain('Rule: Do something.')
-    expect(written).toContain(RULE_A.action)
+    expect(written).toContain('use consistent whitespace')
 
     await cleanup()
   })
 
-  it('uses double newline separator in balanced mode', async () => {
+  it('uses double newline separator when existing content ends with single newline', async () => {
     const filePath = await setup('Existing.\n')
 
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -109,31 +91,12 @@ describe('appendRules', () => {
     await cleanup()
   })
 
-  it('uses single newline separator in concise mode', async () => {
-    const filePath = await setup('Existing.\n')
-
-    const result = await appendRules({
-      filePath,
-      rules: [RULE_A],
-      mode: 'concise',
-    })
-
-    expectStatus(result, 'success')
-
-    const written = await readFile(filePath, 'utf-8')
-    expect(written).not.toContain('Existing.\n\n')
-    expect(written).not.toContain('Reason:')
-
-    await cleanup()
-  })
-
   it('handles file without trailing newline', async () => {
     const filePath = await setup('No trailing newline')
 
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -151,7 +114,6 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expect(result.path).toBe(filePath)
@@ -165,7 +127,6 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath,
       rules: [RULE_A, RULE_B],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
@@ -182,13 +143,44 @@ describe('appendRules', () => {
     const result = await appendRules({
       filePath,
       rules: [RULE_A],
-      mode: 'balanced',
     })
 
     expectStatus(result, 'success')
 
     const written = await readFile(filePath, 'utf-8')
     expect(written).toContain('Rule:')
+
+    await cleanup()
+  })
+
+  it('writes rules exactly as provided', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A],
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toBe(RULE_A + '\n')
+
+    await cleanup()
+  })
+
+  it('joins multiple rules with double newline', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A, RULE_B],
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toBe(RULE_A + '\n\n' + RULE_B + '\n')
 
     await cleanup()
   })

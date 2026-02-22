@@ -1,10 +1,8 @@
 import { writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
+import { compareBytes, type ComparisonResult } from './compare.ts'
 import type { InstructionFile } from './discover.ts'
-import { type FormatMode, formatRules } from './format.ts'
-import type { ParsedRule } from './rule-schema.ts'
-import { compareBytes, type ComparisonResult } from './utils/compare.ts'
-import { safeAsync } from './utils/safe.ts'
+import { safeAsync } from './safe.ts'
 
 type FileResultSuccess = {
   status: 'success'
@@ -23,8 +21,7 @@ export type FileResult = FileResultSuccess | FileResultError
 
 type ProcessFileOptions = {
   file: InstructionFile
-  rules: Array<ParsedRule>
-  mode: FormatMode
+  rules: Array<string>
 }
 
 export const processFile = async (options: ProcessFileOptions): Promise<FileResult> => {
@@ -36,10 +33,7 @@ export const processFile = async (options: ProcessFileOptions): Promise<FileResu
     }
   }
 
-  const content = formatRules({
-    rules: options.rules,
-    mode: options.mode,
-  })
+  const content = options.rules.join('\n\n') + '\n'
 
   const writeResult = await safeAsync(() => writeFile(options.file.path, content, 'utf-8'))
   if (writeResult.error) {

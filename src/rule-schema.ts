@@ -58,3 +58,9 @@ export const parseSchemaExample = JSON.stringify({
     reason: ReasonSchema.description || 'justification',
   }],
 })
+
+export const formatSchemaExample = JSON.stringify({
+  rules: [
+    'Rule: verb target context\nReason: justification',
+  ],
+})

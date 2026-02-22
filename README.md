@@ -21,21 +21,49 @@ Rewrite my instruction files
 Add a rule about using early returns
 ```
 
-Messy or voice-transcribed input can be restructured into a clear task hierarchy using the `refine-prompt` tool.
+Messy or voice-transcribed input can be restructured into a clear task hierarchy using the prompt tools.
 
 ## Tools
 
 For the theory behind the plugin, see [Theoretical Foundation](#theoretical-foundation).
 
-### rewrite-instructions
+The plugin provides 7 tools organized into two pipelines.
 
-Rewrites all matched instruction files through the parse/format pipeline. Discovers files from the `instructions` array in your `opencode.json`. Accepts an optional `mode` (`verbose`, `balanced`, or `concise`, default `balanced`) and an optional `files` string of comma-separated paths to process specific files instead of running discovery.
+### Rules Pipeline
+
+Discovers, parses, formats, and writes instruction rules. The LLM drives each step.
 
 ```
-rewrite-instructions
-rewrite-instructions [mode=concise]
-rewrite-instructions [files=fixtures/testing.md]
-rewrite-instructions [files=a.md,b.md, mode=verbose]
+discover-rules -> parse-rules -> format-rules -> rewrite-rules
+                                               -> add-rules
+```
+
+#### discover-rules
+
+Reads instruction files from your `opencode.json` configuration. Accepts an optional `files` string of comma-separated paths to read specific files instead of running discovery.
+
+#### parse-rules
+
+Parses instruction file content or unstructured user input into structured rules JSON. Validates the parsed rules against the schema and returns validated JSON. Call after `discover-rules` and before `format-rules`.
+
+#### format-rules
+
+Converts parsed rules into human-readable formatted rule strings. Accepts an optional `mode` (`verbose`, `balanced`, or `concise`, default `balanced`). Validates the formatted rules and returns validated JSON. Call after `parse-rules` and before `rewrite-rules` or `add-rules`.
+
+#### rewrite-rules
+
+Writes formatted rule strings to instruction files, replacing existing content. Accepts an optional `mode` and an optional `files` string of comma-separated paths. Call after `format-rules`.
+
+#### add-rules
+
+Appends formatted rule strings to an instruction file without rewriting existing content. Accepts an optional `mode` and an optional `file` path (defaults to the first discovered instruction file). Call after `format-rules`.
+
+### Formatting Modes
+
+```
+rewrite-rules [mode=concise]
+rewrite-rules [files=a.md,b.md, mode=verbose]
+add-rules [mode=concise]
 ```
 
 **Input:**
@@ -76,31 +104,24 @@ Reason: Arrow functions provide lexical this binding and a more compact syntax.
 - Never use function declarations or function expressions.
 ```
 
-### add-instruction
+### Prompt Pipeline
 
-Appends new rules to the end of an instruction file without rewriting existing content. Takes an `input` string of unstructured rule text to parse, format, and append. Accepts an optional `file` path (defaults to the first discovered instruction file) and an optional `mode` (`verbose`, `balanced`, or `concise`, default `balanced`).
-
-```
-add-instruction [input=Always use early returns]
-add-instruction [input=Use early returns, mode=concise]
-add-instruction [input=Use early returns, file=docs/rules.md]
-```
-
-### automatic-rule
-
-Detects when the user corrects the agent or expresses a coding preference, extracts the implicit rule, and appends it to the instruction file. This tool is invoked automatically by the LLM, not by the user. Takes an `input` string of the user's correction or feedback. Accepts an optional `file` path (defaults to the first discovered instruction file).
+Restructures messy or unstructured user input into a clear task hierarchy.
 
 ```
-automatic-rule [input=Don't use semicolons in this project]
-automatic-rule [input=I prefer early returns, file=docs/rules.md]
+parse-prompt -> format-prompt
 ```
 
-### refine-prompt
+#### parse-prompt
 
-Restructures messy or unstructured user input into a clear task hierarchy. Takes an `input` string of raw text (often from voice transcription) and decomposes it into structured tasks with intent, targets, constraints, context, and recursive subtasks.
+Decomposes raw text (often from voice transcription) into structured tasks with intent, targets, constraints, context, and recursive subtasks. Validates against the schema and returns validated JSON.
+
+#### format-prompt
+
+Renders validated tasks from `parse-prompt` into a formatted markdown tree view.
 
 ```
-refine-prompt [input=refactor the search module add guards to each provider make sure bsky and wiki get validated then run the tests]
+parse-prompt [input=refactor the search module add guards to each provider make sure bsky and wiki get validated then run the tests]
 ```
 
 Output:

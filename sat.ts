@@ -1,12 +1,19 @@
 import type { Plugin } from '@opencode-ai/plugin'
-import { createAppendTool, createDiscoverTool, createRefineTool, createRewriteTool } from './src/tools.ts'
+import { createFormatPromptTool, createParsePromptTool } from './src/tools/prompts.ts'
+import {
+  createAddTool,
+  createDiscoverTool,
+  createFormatRulesTool,
+  createParseRulesTool,
+  createRewriteTool,
+} from './src/tools/rules.ts'
 
 const plugin: Plugin = async ({ directory }) => {
   const discovered = new Set<string>()
 
   return {
     tool: {
-      'discover-instructions': createDiscoverTool({
+      'discover-rules': createDiscoverTool({
         directory,
         discovered,
         description: [
@@ -16,40 +23,71 @@ const plugin: Plugin = async ({ directory }) => {
         ].join('\n'),
       }),
 
-      'rewrite-instructions': createRewriteTool({
-        directory,
-        discovered,
+      'parse-rules': createParseRulesTool({
         description: [
-          '- Discover instruction files from opencode.json configuration.',
-          '- Parse discovered instruction files into structured rules.',
-          '- Format structured rules into human-readable rules.',
-          '- Write formatted rules back to the original instruction files.',
+          '- Parse instruction file content or unstructured user input into structured rules JSON.',
+          '- The rules parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Validates the parsed rules against the schema and returns the validated JSON.',
+          '- Call this tool AFTER discover-rules and BEFORE format-rules.',
+        ].join('\n'),
+      }),
+
+      'format-rules': createFormatRulesTool({
+        description: [
+          '- Convert parsed rules from parse-rules into human-readable formatted rule strings.',
+          '- Express deontic strength naturally: obligatory as positive imperative, forbidden as negated imperative (do not), permissible as "may".',
           '- Optionally accept a mode parameter (verbose, balanced, or concise) to control formatting.',
           '- Default to balanced mode when no mode is specified.',
-          '- Optionally accept a files parameter to process specific files instead of running discovery.',
+          '- For verbose and balanced modes, each rule string must include "Rule: " prefix and "\\nReason: " suffix.',
+          '- For concise mode, use "- " prefix with directive only, no reasons.',
+          '- The rules parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Validates the formatted rules and returns the validated JSON.',
+          '- Call this tool AFTER parse-rules and BEFORE rewrite-rules or add-rules.',
         ].join('\n'),
       }),
 
-      'add-instruction': createAppendTool({
+      'rewrite-rules': createRewriteTool({
         directory,
         discovered,
         description: [
-          '- Parse unstructured input into structured rules.',
-          '- Format parsed rules after parsing unstructured input into structured rules.',
-          '- Append formatted rules to the instruction file without rewriting existing content.',
-          '- Optionally accept a mode parameter (verbose, balanced, or concise).',
-          '- Default mode to balanced when no mode parameter is specified.',
-          '- Optionally accept a file parameter to specify the target instruction file.',
-          '- Append to the first discovered instruction file when no file parameter is specified.',
+          '- Write formatted rule strings from format-rules to instruction files, replacing existing content.',
+          '- The rules parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Optionally accept a mode parameter (verbose, balanced, or concise) to control formatting.',
+          '- Default to balanced mode when no mode is specified.',
+          '- Optionally accept a files parameter to process specific files instead of discovering from opencode.json.',
+          '- Call this tool AFTER format-rules.',
         ].join('\n'),
       }),
 
-      'refine-prompt': createRefineTool({
+      'add-rules': createAddTool({
+        directory,
+        discovered,
         description: [
-          '- Restructure messy, ambiguous, or voice-transcribed user input before starting work when the message is vague, run-on, contains multiple interleaved requests, or reads like unpunctuated speech.',
-          '- Invoke this tool BEFORE starting work on vague, run-on, multi-request, or speech-like user messages.',
-          '- Decompose the input into a hierarchical task breakdown when restructuring user input.',
-          '- Return formatted markdown after decomposing the input.',
+          '- Append formatted rule strings from format-rules to an instruction file without rewriting existing content.',
+          '- The rules parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Optionally accept a mode parameter (verbose, balanced, or concise) to control formatting.',
+          '- Default to balanced mode when no mode is specified.',
+          '- Optionally accept a file parameter to specify the target instruction file.',
+          '- Append to the first discovered instruction file when no file parameter is specified.',
+          '- Call this tool AFTER format-rules.',
+        ].join('\n'),
+      }),
+
+      'parse-prompt': createParsePromptTool({
+        description: [
+          '- Decompose messy, ambiguous, or voice-transcribed user input into a structured task hierarchy.',
+          '- The tasks parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Validates the parsed tasks against the schema and returns the validated JSON.',
+          '- Call this tool BEFORE format-prompt.',
+        ].join('\n'),
+      }),
+
+      'format-prompt': createFormatPromptTool({
+        description: [
+          '- Render validated tasks from parse-prompt into a formatted markdown tree view.',
+          '- The tasks parameter is required and must be a JSON string matching the schema described in the parameter.',
+          '- Return formatted markdown after rendering the task tree.',
+          '- Call this tool AFTER parse-prompt.',
         ].join('\n'),
       }),
     },

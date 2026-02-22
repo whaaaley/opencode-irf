@@ -1,6 +1,6 @@
 import { discover, readFilePaths } from './discover.ts'
 import type { InstructionFile } from './discover.ts'
-import type { Result } from './utils/safe.ts'
+import type { Result } from './safe.ts'
 
 // resolve instruction files from explicit paths or opencode.json discovery
 export const resolveFiles = async (directory: string, filesArg?: string): Promise<Result<InstructionFile[]>> => {
