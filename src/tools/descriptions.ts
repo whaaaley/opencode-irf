@@ -42,19 +42,18 @@ export const MODE_FORMATS = [
 // Parameter shape descriptions. These describe the JSON value, not the LLM's role.
 
 export const PARSE_RULES_PARAM = [
-  'JSON with "rules" array of parsed rule objects.',
-  'Each rule: { strength, action, target, context?, reason }',
-  'Example: ' + parseSchemaExample,
+  'Structured JSON with "rules" array. You decompose the user input into rule objects, the tool validates them.',
+  'Schema: ' + parseSchemaExample,
 ].join('\n')
 
 export const FORMAT_RULES_PARAM = [
   'JSON with "rules" array of formatted rule strings.',
-  'Example: ' + formatSchemaExample,
+  'Schema: ' + formatSchemaExample,
 ].join('\n')
 
 export const MODE_PARAM = 'verbose | balanced | concise. Default: balanced.'
 
 export const PARSE_PROMPT_PARAM = [
-  'JSON with "tasks" array. Each task: { intent, targets, constraints, context?, subtasks }',
-  'Example: ' + promptSchemaExample,
+  'Structured JSON with "tasks" array. You decompose the user input, the tool validates it.',
+  'Schema: ' + promptSchemaExample,
 ].join('\n')

@@ -142,19 +142,6 @@ export const FormatResponseSchema = z.object({
 export type Strength = z.infer<typeof StrengthSchema>
 export type ParsedRule = z.infer<typeof ParsedRuleSchema>
 
-export const parseSchemaExample = JSON.stringify({
-  rules: [{
-    strength: StrengthSchema.options.join('/'),
-    action: ActionSchema.description || 'verb',
-    target: TargetSchema.description || 'object',
-    context: ContextSchema.description || 'optional condition',
-    reason: ReasonSchema.description || 'justification',
-  }],
-})
+export const parseSchemaExample = JSON.stringify(z.toJSONSchema(ParseResponseSchema))
 
-export const formatSchemaExample = JSON.stringify({
-  rules: [
-    'Rule: Verb target context.\nReason: Justification.',
-    'Rule: Do not verb target context.\nReason: Justification.',
-  ],
-})
+export const formatSchemaExample = JSON.stringify(z.toJSONSchema(FormatResponseSchema))

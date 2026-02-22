@@ -26,7 +26,8 @@ const plugin: Plugin = async ({ directory, client }) => {
 
       'parse-rules': createParseRulesTool({
         description: [
-          '- Parse instruction file content or unstructured user input into structured rules JSON.',
+          '- Structure instruction file content or user input into validated rules JSON.',
+          '- You decompose the input into rule objects, the tool validates the structure.',
           '- The rules parameter is required and must be a JSON string matching the schema described in the parameter.',
           '- Validates the parsed rules against the schema and returns the validated JSON.',
           '- Call this tool AFTER discover-rules and BEFORE format-rules.',
@@ -96,7 +97,8 @@ const plugin: Plugin = async ({ directory, client }) => {
 
       'parse-prompt': createParsePromptTool({
         description: [
-          '- Decompose messy, ambiguous, or voice-transcribed user input into a structured task hierarchy.',
+          '- Structure user input into a validated task hierarchy.',
+          '- You decompose the input into tasks, the tool validates the structure.',
           '- The tasks parameter is required and must be a JSON string matching the schema described in the parameter.',
           '- Validates the parsed tasks against the schema and returns the validated JSON.',
           '- Call this tool BEFORE format-prompt.',
