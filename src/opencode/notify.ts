@@ -1,22 +1,19 @@
 import type { PluginInput } from '@opencode-ai/plugin'
 
-type Client = PluginInput['client']
-
 type SendResultOptions = {
-  client: Client
+  client: PluginInput['client']
   sessionID: string
   text: string
 }
 
-export const sendResult = async (options: SendResultOptions): Promise<void> => {
+export const sendResult = async (options: SendResultOptions) => {
   await options.client.session.prompt({
     path: { id: options.sessionID },
     body: {
       noReply: true,
       parts: [{
         type: 'text',
-        text: options.text,
-        ignored: true,
+        text: '▣ SAT | Speech Act Theory\n\n' + options.text,
       }],
     },
   })

@@ -25,16 +25,16 @@ Reason: To promote modularity and reusability.
 Rule: If side effects are required, use callbacks or dependency injection.
 Reason: To manage side effects cleanly while maintaining testability.
 
-Rule: Avoid complex types wherever possible.
+Rule: Do not use complex types wherever possible.
 Reason: To keep type definitions simple and readable.
 
-Rule: Avoid non-null assertions.
+Rule: Do not use non-null assertions.
 Reason: To verify values before accessing them using narrowing type guards instead.
 
-Rule: Avoid excessive optional chaining.
+Rule: Do not use excessive optional chaining.
 Reason: To ensure deliberate null/undefined checks using explicit guards and conditions so access patterns are clear and intentional.
 
-Rule: Avoid em dashes in general.
+Rule: Do not use em dashes in general.
 Reason: To maintain consistent, simple punctuation across all written content.
 
 Rule: Use consistent whitespace for readability.
@@ -43,7 +43,7 @@ Reason: Whitespace is critical for readability and inconsistent spacing makes co
 Rule: Prefer early returns over if-else statements.
 Reason: To reduce nesting and improve readability by handling edge cases first.
 
-Rule: Avoid ternaries, especially chained ternaries, unless used for simple const or object assignment.
+Rule: Do not use ternaries, especially chained ternaries, unless used for simple const or object assignment.
 Reason: To keep conditional logic readable and explicit.
 
 Rule: Do not split function parameters across multiple lines.
@@ -66,3 +66,17 @@ Reason: Prevents invalid states and enables exhaustive narrowing.
 
 Rule: When an if statement is a guard that checks the variable declared in the immediately preceding const/let, do not insert a blank line between the declaration and the if.
 Reason: The declaration and its guard check are logically coupled and should be visually grouped by touching.
+
+Rule: Use dprint for formatting, not prettier.
+Reason: The project uses dprint as its code formatter.
+
+Rule: When asked to format code, run `bun run dprint fmt`.
+
+Rule: Do not wrap expect statements inside tests with if statements. Use expect statements directly as guards instead.
+Reason: Conditional branches hide test failures silently; expect statements surface them.
+
+Rule: When naming boolean variables, use positive phrasing like isEnabled instead of negative phrasing like isNotDisabled.
+Reason: Positive boolean names avoid double negation and are easier to reason about.
+
+Rule: When a test file grows beyond 200 lines, split it into focused test files by feature.
+Reason: Smaller test files are easier to navigate and run selectively.

@@ -2,219 +2,192 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendRules } from './append'
-import type { PromptFn } from './process'
+import { type AppendResult, appendRules } from './append.ts'
 
-const sampleParsed = {
-  rules: [{
-    strength: 'obligatory' as const,
-    action: 'use',
-    target: 'arrow functions',
-    reason: 'consistency',
-  }],
+const RULE_A =
+  'Rule: use consistent whitespace for readability in all source files\nReason: Whitespace is critical for readability.'
+const RULE_B = 'Rule: do not use non-null assertions in TypeScript files\nReason: Use narrowing type guards instead.'
+
+type SuccessResult = Extract<AppendResult, { status: 'success' }>
+
+const expectStatus = (result: AppendResult, expected: AppendResult['status']) => {
+  expect(result.status).toBe(expected)
 }
 
-const sampleFormatted = {
-  rules: ['Rule: Use arrow functions\nReason: consistency'],
-}
-
-type MakePromptFnOptions = {
-  parseData?: typeof sampleParsed
-  parseError?: string
-  formatData?: typeof sampleFormatted
-  formatError?: string
-}
-
-const makePromptFn = (options: MakePromptFnOptions): PromptFn => {
-  let call = 0
-  return (() => {
-    call++
-    if (call === 1) {
-      if (options.parseError) {
-        return Promise.resolve({ data: null, error: options.parseError })
-      }
-      return Promise.resolve({ data: options.parseData ?? sampleParsed, error: null })
-    }
-    if (options.formatError) {
-      return Promise.resolve({ data: null, error: options.formatError })
-    }
-    return Promise.resolve({ data: options.formatData ?? sampleFormatted, error: null })
-  }) as PromptFn
+const expectSuccess = (result: AppendResult): SuccessResult => {
+  expect(result.status).toBe('success')
+  return result as SuccessResult
 }
 
 describe('appendRules', () => {
-  it('returns readError when file does not exist', async () => {
+  let dir: string
+
+  const setup = async (content: string) => {
+    dir = await mkdtemp(join(tmpdir(), 'sat-append-'))
+    const filePath = join(dir, 'instructions.md')
+    await writeFile(filePath, content, 'utf-8')
+    return filePath
+  }
+
+  const cleanup = async () => {
+    if (dir) {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }
+
+  it('returns readError for missing file', async () => {
     const result = await appendRules({
-      input: 'use arrow functions',
-      filePath: 'nonexistent.md',
-      directory: '/tmp',
-      prompt: makePromptFn({}),
+      filePath: '/nonexistent/file.md',
+      rules: [RULE_A],
     })
-    expect(result.status).toBe('readError')
+
+    expectStatus(result, 'readError')
+
+    await cleanup()
   })
 
-  it('returns parseError when parse fails', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'existing content\n', 'utf-8')
+  it('appends formatted rules to file', async () => {
+    const filePath = await setup('Existing content.\n')
 
     const result = await appendRules({
-      input: 'use arrow functions',
       filePath,
-      directory: dir,
-      prompt: makePromptFn({ parseError: 'bad parse' }),
+      rules: [RULE_A],
     })
-    expect(result.status).toBe('parseError')
-    if (result.status === 'parseError') {
-      expect(result.error).toBe('bad parse')
-    }
 
-    await rm(dir, { recursive: true })
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('Existing content.')
+    expect(written).toContain('Rule:')
+    expect(written).toContain('Reason:')
+
+    await cleanup()
   })
 
-  it('returns formatError when format fails', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'existing content\n', 'utf-8')
+  it('preserves existing content', async () => {
+    const existing = 'Rule: Do something.\nReason: Because.\n'
+    const filePath = await setup(existing)
 
     const result = await appendRules({
-      input: 'use arrow functions',
       filePath,
-      directory: dir,
-      prompt: makePromptFn({ formatError: 'bad format' }),
+      rules: [RULE_A],
     })
-    expect(result.status).toBe('formatError')
-    if (result.status === 'formatError') {
-      expect(result.error).toBe('bad format')
-    }
 
-    await rm(dir, { recursive: true })
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('Rule: Do something.')
+    expect(written).toContain('use consistent whitespace')
+
+    await cleanup()
   })
 
-  it('appends formatted rules to end of file', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'existing content\n', 'utf-8')
+  it('uses double newline separator when existing content ends with single newline', async () => {
+    const filePath = await setup('Existing.\n')
 
     const result = await appendRules({
-      input: 'use arrow functions',
       filePath,
-      directory: dir,
-      prompt: makePromptFn({}),
-    })
-    expect(result.status).toBe('success')
-    if (result.status === 'success') {
-      expect(result.rulesCount).toBe(1)
-    }
-
-    const content = await readFile(join(dir, filePath), 'utf-8')
-    expect(content).toBe('existing content\n\nRule: Use arrow functions\nReason: consistency\n')
-
-    await rm(dir, { recursive: true })
-  })
-
-  it('preserves existing content without modification', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    const existing = 'Rule: Existing rule\nReason: already here\n'
-    await writeFile(join(dir, filePath), existing, 'utf-8')
-
-    await appendRules({
-      input: 'use arrow functions',
-      filePath,
-      directory: dir,
-      prompt: makePromptFn({}),
+      rules: [RULE_A],
     })
 
-    const content = await readFile(join(dir, filePath), 'utf-8')
-    expect(content.startsWith(existing)).toBe(true)
+    expectStatus(result, 'success')
 
-    await rm(dir, { recursive: true })
-  })
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('Existing.\n\n')
 
-  it('joins multiple rules with double newline in balanced mode', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'header\n', 'utf-8')
-
-    const multiFormatted = {
-      rules: [
-        'Rule: Use arrow functions\nReason: consistency',
-        'Rule: Prefer const\nReason: immutability',
-      ],
-    }
-
-    const result = await appendRules({
-      input: 'two rules',
-      filePath,
-      directory: dir,
-      prompt: makePromptFn({ formatData: multiFormatted }),
-    })
-    expect(result.status).toBe('success')
-    if (result.status === 'success') {
-      expect(result.rulesCount).toBe(2)
-    }
-
-    const content = await readFile(join(dir, filePath), 'utf-8')
-    expect(content).toContain('consistency\n\nRule: Prefer const')
-
-    await rm(dir, { recursive: true })
-  })
-
-  it('joins rules with single newline in concise mode', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'header\n', 'utf-8')
-
-    const conciseFormatted = {
-      rules: ['- Use arrow functions', '- Prefer const'],
-    }
-
-    const result = await appendRules({
-      input: 'two rules',
-      filePath,
-      directory: dir,
-      prompt: makePromptFn({ formatData: conciseFormatted }),
-      mode: 'concise',
-    })
-    expect(result.status).toBe('success')
-
-    const content = await readFile(join(dir, filePath), 'utf-8')
-    expect(content).toBe('header\n\n- Use arrow functions\n- Prefer const\n')
-
-    await rm(dir, { recursive: true })
+    await cleanup()
   })
 
   it('handles file without trailing newline', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'instructions.md'
-    await writeFile(join(dir, filePath), 'no trailing newline', 'utf-8')
+    const filePath = await setup('No trailing newline')
 
-    await appendRules({
-      input: 'use arrow functions',
+    const result = await appendRules({
       filePath,
-      directory: dir,
-      prompt: makePromptFn({}),
+      rules: [RULE_A],
     })
 
-    const content = await readFile(join(dir, filePath), 'utf-8')
-    expect(content).toBe('no trailing newline\n\nRule: Use arrow functions\nReason: consistency\n')
+    expectStatus(result, 'success')
 
-    await rm(dir, { recursive: true })
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('No trailing newline')
+    expect(written).toContain('Rule:')
+
+    await cleanup()
   })
 
   it('propagates file path in result', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sat-'))
-    const filePath = 'custom/path.md'
-    // readError since nested dir doesn't exist, but path should propagate
-    const result = await appendRules({
-      input: 'test',
-      filePath,
-      directory: dir,
-      prompt: makePromptFn({}),
-    })
-    expect(result.path).toBe('custom/path.md')
+    const filePath = await setup('')
 
-    await rm(dir, { recursive: true })
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A],
+    })
+
+    expect(result.path).toBe(filePath)
+
+    await cleanup()
+  })
+
+  it('returns rulesCount in success result', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A, RULE_B],
+    })
+
+    expectStatus(result, 'success')
+    const success = expectSuccess(result)
+    expect(success.rulesCount).toBe(2)
+
+    await cleanup()
+  })
+
+  it('appends to empty file', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A],
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toContain('Rule:')
+
+    await cleanup()
+  })
+
+  it('writes rules exactly as provided', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A],
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toBe(RULE_A + '\n')
+
+    await cleanup()
+  })
+
+  it('joins multiple rules with double newline', async () => {
+    const filePath = await setup('')
+
+    const result = await appendRules({
+      filePath,
+      rules: [RULE_A, RULE_B],
+    })
+
+    expectStatus(result, 'success')
+
+    const written = await readFile(filePath, 'utf-8')
+    expect(written).toBe(RULE_A + '\n\n' + RULE_B + '\n')
+
+    await cleanup()
   })
 })

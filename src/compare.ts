@@ -1,4 +1,6 @@
 import Table from 'cli-table3'
+import { basename } from 'node:path'
+import type { FileResult } from './rewrite.ts'
 
 export type ComparisonResult = {
   file: string
@@ -147,8 +149,33 @@ export const buildTable = (rows: TableRow[]): string => {
   }
 
   const summary = (totals.totalDifference > 0 ? 'SAVED ' : 'INCREASED ')
-    + Math.abs(totals.totalDifference) + ' bytes ('
-    + Math.abs(totals.totalPercentChange).toFixed(1) + '%)'
+    + Math.abs(totals.totalDifference)
+    + ' bytes ('
+    + Math.abs(totals.totalPercentChange).toFixed(1)
+    + '%)'
 
   return lines.join('\n') + '\n\n' + summary
+}
+
+const ERROR_LABELS: Record<string, string> = {
+  readError: 'Read failed',
+  writeError: 'Write failed',
+}
+
+export const toTableRow = (result: FileResult): TableRow => {
+  if (result.status === 'success') {
+    return {
+      file: basename(result.path),
+      status: 'Success',
+      rules: result.rulesCount,
+      comparison: result.comparison,
+    }
+  }
+
+  const label = ERROR_LABELS[result.status] || result.status
+
+  return {
+    file: basename(result.path),
+    status: label,
+  }
 }

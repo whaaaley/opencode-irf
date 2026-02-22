@@ -1,9 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import type { PromptFn } from './process'
-import { buildFormatPrompt, buildParsePrompt, type FormatMode } from './prompt'
-import { FormatResponseSchema, ParseResponseSchema } from './rule-schema'
-import { safeAsync } from './utils/safe'
+import { safeAsync } from './safe.ts'
 
 type AppendResultSuccess = {
   status: 'success'
@@ -11,65 +7,57 @@ type AppendResultSuccess = {
   rulesCount: number
 }
 
-type AppendResultError = {
-  status: 'parseError' | 'formatError' | 'readError' | 'writeError'
+type AppendResultReadError = {
+  status: 'readError'
   path: string
   error: string
 }
 
-type AppendResult = AppendResultSuccess | AppendResultError
-
-type AppendRulesOptions = {
-  input: string
-  filePath: string
-  directory: string
-  prompt: PromptFn
-  mode?: FormatMode
+type AppendResultWriteError = {
+  status: 'writeError'
+  path: string
+  error: string
 }
 
-// parse unstructured input, format it, and append to end of file
-export const appendRules = async (options: AppendRulesOptions): Promise<AppendResult> => {
-  const mode = options.mode ?? 'balanced'
-  const fullPath = resolve(options.directory, options.filePath)
+export type AppendResult = AppendResultSuccess | AppendResultReadError | AppendResultWriteError
 
-  // read existing file content
-  const existing = await safeAsync(() => readFile(fullPath, 'utf-8'))
-  if (existing.error !== null) {
+type AppendRulesOptions = {
+  filePath: string
+  rules: Array<string>
+}
+
+const computeSeparator = (existing: string): string => {
+  if (existing.length === 0) {
+    return ''
+  }
+
+  if (existing.endsWith('\n\n')) {
+    return ''
+  }
+
+  if (existing.endsWith('\n')) {
+    return '\n'
+  }
+
+  return '\n\n'
+}
+
+export const appendRules = async (options: AppendRulesOptions): Promise<AppendResult> => {
+  const readResult = await safeAsync(() => readFile(options.filePath, 'utf-8'))
+  if (readResult.error) {
     return {
       status: 'readError',
       path: options.filePath,
-      error: existing.error.message,
+      error: readResult.error.message,
     }
   }
 
-  // step 1: parse input -> structured rules
-  const parseResult = await options.prompt(buildParsePrompt(options.input), ParseResponseSchema)
-  if (parseResult.error !== null) {
-    return {
-      status: 'parseError',
-      path: options.filePath,
-      error: String(parseResult.error),
-    }
-  }
+  const formatted = options.rules.join('\n\n') + '\n'
+  const existing = readResult.data
+  const separator = computeSeparator(existing)
+  const content = existing + separator + formatted
 
-  // step 2: format structured rules -> human-readable rules
-  const formatPrompt = buildFormatPrompt(JSON.stringify(parseResult.data), mode)
-  const formatResult = await options.prompt(formatPrompt, FormatResponseSchema)
-  if (formatResult.error !== null) {
-    return {
-      status: 'formatError',
-      path: options.filePath,
-      error: String(formatResult.error),
-    }
-  }
-
-  // step 3: append formatted rules to end of file
-  const joiner = mode === 'concise' ? '\n' : '\n\n'
-  const newRules = formatResult.data.rules.join(joiner)
-  const separator = existing.data.endsWith('\n') ? '\n' : '\n\n'
-  const content = existing.data + separator + newRules + '\n'
-
-  const writeResult = await safeAsync(() => writeFile(fullPath, content, 'utf-8'))
+  const writeResult = await safeAsync(() => writeFile(options.filePath, content, 'utf-8'))
   if (writeResult.error) {
     return {
       status: 'writeError',
@@ -81,6 +69,6 @@ export const appendRules = async (options: AppendRulesOptions): Promise<AppendRe
   return {
     status: 'success',
     path: options.filePath,
-    rulesCount: formatResult.data.rules.length,
+    rulesCount: options.rules.length,
   }
 }

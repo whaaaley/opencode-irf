@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { safe } from './safe'
+import { safe } from './safe.ts'
 
 type ValidateJsonSuccess<T> = {
   data: T
@@ -48,7 +48,9 @@ export const formatValidationError = (result: ValidateJsonParseError | ValidateJ
     return 'Invalid JSON. Return valid JSON.'
   }
 
-  const issues = result.issues.map((i) => '  - ' + i.path.join('.') + ': ' + i.message).join('\n')
+  const issues = result.issues
+    .map((i) => '  - ' + i.path.join('.') + ': ' + i.message)
+    .join('\n')
 
   return 'Schema validation failed:\n' + issues + '\n\nFix the issues and try again.'
 }
