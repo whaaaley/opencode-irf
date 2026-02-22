@@ -7,9 +7,16 @@ export const resolveFiles = async (directory: string, filesArg?: string): Promis
   if (filesArg) {
     const paths = filesArg.split(',').map((p) => p.trim()).filter((p) => p.length > 0)
     if (paths.length === 0) {
-      return { data: null, error: 'No valid file paths provided' }
+      return {
+        data: null,
+        error: 'No valid file paths provided',
+      }
     }
-    return { data: await readFilePaths(directory, paths), error: null }
+
+    return {
+      data: await readFilePaths(directory, paths),
+      error: null,
+    }
   }
 
   return await discover(directory)

@@ -1,14 +1,38 @@
 import type { Plugin } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
+import { basename } from 'node:path'
 import { appendRules } from './src/append.ts'
-import { buildComparisonSection, formatFileResult } from './src/format.ts'
 import { sendResult } from './src/opencode/notify.ts'
-import { processFile, type PromptFn } from './src/process.ts'
+import { type FileResult, processFile, type PromptFn } from './src/process.ts'
 import { isFormatMode } from './src/prompt.ts'
 import { resolveFiles } from './src/resolve.ts'
 import { detectModel, promptWithRetry } from './src/session.ts'
-import type { ComparisonResult } from './src/utils/compare.ts'
+import { buildTable, type TableRow } from './src/utils/compare.ts'
 import { safeAsync } from './src/utils/safe.ts'
+
+const ERROR_LABELS: Record<string, string> = {
+  readError: 'Read failed',
+  parseError: 'Parse failed',
+  formatError: 'Format failed',
+  writeError: 'Write failed',
+}
+
+const toTableRow = (result: FileResult): TableRow => {
+  if (result.status === 'success') {
+    return {
+      file: basename(result.path),
+      status: 'Success',
+      rules: result.rulesCount,
+      comparison: result.comparison,
+    }
+  }
+
+  const label = ERROR_LABELS[result.status] || result.status
+  return {
+    file: basename(result.path),
+    status: label,
+  }
+}
 
 const plugin: Plugin = async ({ directory, client }) => {
   return {
@@ -39,7 +63,6 @@ const plugin: Plugin = async ({ directory, client }) => {
             if (resolved.error !== null) {
               return resolved.error
             }
-            const files = resolved.data
 
             // detect model from current session
             const model = await detectModel(client, context.sessionID)
@@ -48,18 +71,15 @@ const plugin: Plugin = async ({ directory, client }) => {
             }
 
             // create a session for internal LLM calls
-            const sessionResult = await client.session.create({
-              body: {
-                title: 'IRF Parse',
-              },
-            })
+            const sessionResult = await client.session.create({ body: { title: 'IRF Parse' } })
             if (!sessionResult.data) {
               return 'Failed to create internal session'
             }
+
             const sessionId = sessionResult.data.id
 
             // close over session details so processFile only needs a prompt callback
-            const prompt: PromptFn = (text, schema) =>
+            const prompt: PromptFn = (text, schema) => (
               promptWithRetry({
                 client,
                 sessionId,
@@ -67,48 +87,34 @@ const plugin: Plugin = async ({ directory, client }) => {
                 schema,
                 model,
               })
+            )
 
             // process files sequentially; parallel prompting through a shared
             // session may cause ordering issues depending on SDK behavior
-            const results: string[] = []
-            const comparisons: ComparisonResult[] = []
+            const fileResults: FileResult[] = []
 
-            for (const file of files) {
+            for (const file of resolved.data) {
               // bail if the tool call was cancelled
               if (context.abort.aborted) {
-                results.push('Cancelled')
                 break
               }
 
-              const fileResult = await processFile({
-                file,
-                prompt,
-                mode,
-              })
-              if (fileResult.status === 'success') {
-                comparisons.push(fileResult.comparison)
-              }
-              results.push(formatFileResult(fileResult))
+              fileResults.push(await processFile({ file, prompt, mode }))
             }
 
             // clean up the internal session
-            await safeAsync(() =>
-              client.session.delete({
-                path: { id: sessionId },
-              })
-            )
+            await safeAsync(() => client.session.delete({ path: { id: sessionId } }))
 
-            // send comparison table directly to chat
-            const tableSection = buildComparisonSection(comparisons)
-            if (tableSection.length > 0) {
+            const table = buildTable(fileResults.map(toTableRow))
+            if (table.length > 0) {
               await sendResult({
                 client,
                 sessionID: context.sessionID,
-                text: tableSection.join('\n'),
+                text: table,
               })
             }
 
-            return results.join('\n')
+            return table
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             return 'irf-rewrite error: ' + msg
@@ -147,10 +153,12 @@ const plugin: Plugin = async ({ directory, client }) => {
               if (resolved.error !== null) {
                 return resolved.error
               }
+
               const first = resolved.data[0]
               if (!first) {
                 return 'No instruction files found in opencode.json'
               }
+
               filePath = first.path
             }
 
@@ -161,15 +169,14 @@ const plugin: Plugin = async ({ directory, client }) => {
             }
 
             // create a session for internal LLM calls
-            const sessionResult = await client.session.create({
-              body: { title: 'IRF Add' },
-            })
+            const sessionResult = await client.session.create({ body: { title: 'IRF Add' } })
             if (!sessionResult.data) {
               return 'Failed to create internal session'
             }
+
             const sessionId = sessionResult.data.id
 
-            const prompt: PromptFn = (text, schema) =>
+            const prompt: PromptFn = (text, schema) => (
               promptWithRetry({
                 client,
                 sessionId,
@@ -177,6 +184,7 @@ const plugin: Plugin = async ({ directory, client }) => {
                 schema,
                 model,
               })
+            )
 
             const result = await appendRules({
               input: args.input,
@@ -187,11 +195,7 @@ const plugin: Plugin = async ({ directory, client }) => {
             })
 
             // clean up the internal session
-            await safeAsync(() =>
-              client.session.delete({
-                path: { id: sessionId },
-              })
-            )
+            await safeAsync(() => client.session.delete({ path: { id: sessionId } }))
 
             if (result.status !== 'success') {
               return result.status + ': ' + result.error

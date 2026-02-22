@@ -1,7 +1,7 @@
+import { describe, expect, it } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'bun:test'
 import { appendRules } from './append'
 import type { PromptFn } from './process'
 
