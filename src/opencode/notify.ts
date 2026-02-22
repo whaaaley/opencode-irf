@@ -13,7 +13,7 @@ export const sendResult = async (options: SendResultOptions) => {
       noReply: true,
       parts: [{
         type: 'text',
-        text: options.text,
+        text: '▣ SAT | Speech Act Theory\n\n' + options.text,
       }],
     },
   })

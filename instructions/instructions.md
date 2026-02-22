@@ -77,3 +77,6 @@ Reason: Conditional branches hide test failures silently; expect statements surf
 
 Rule: When naming boolean variables, use positive phrasing like isEnabled instead of negative phrasing like isNotDisabled.
 Reason: Positive boolean names avoid double negation and are easier to reason about.
+
+Rule: When a test file grows beyond 200 lines, split it into focused test files by feature.
+Reason: Smaller test files are easier to navigate and run selectively.
