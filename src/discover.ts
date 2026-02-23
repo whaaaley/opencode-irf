@@ -8,8 +8,8 @@ export type InstructionFile = {
   error?: string
 }
 
-type DiscoverResult = Result<InstructionFile[]>
-type ConfigResult = Result<string[]>
+type DiscoverResult = Result<InstructionFile[], string>
+type ConfigResult = Result<string[], string>
 
 const readConfig = async (directory: string): Promise<ConfigResult> => {
   const configPath = join(directory, 'opencode.json')

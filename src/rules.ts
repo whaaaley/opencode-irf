@@ -2,6 +2,7 @@ import type { PluginInput } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
 import { appendRules } from './append.ts'
 import { buildTable, toTableRow } from './compare.ts'
+import type { InstructionFile } from './discover.ts'
 import { sendResult } from './opencode/notify.ts'
 import { resolveFiles } from './resolve.ts'
 import { type FileResult, processFile } from './rewrite.ts'
@@ -42,7 +43,7 @@ export const createDiscoverTool = (options: DiscoverToolOptions) => {
         options.discovered.add(file.path)
       }
 
-      const sections = resolved.data.map((file) => {
+      const sections = resolved.data.map((file: InstructionFile) => {
         if (file.error) {
           return '## ' + file.path + '\n\nError: ' + file.error
         }
@@ -190,9 +191,9 @@ export const createAddTool = (options: WriteToolOptions) => {
         return formatValidationError(validated)
       }
 
-      let filePath = args.file
+      let targetPath = args.file
 
-      if (!filePath) {
+      if (!targetPath) {
         const resolved = await resolveFiles(options.directory)
         if (resolved.error !== null) {
           return resolved.error
@@ -203,11 +204,11 @@ export const createAddTool = (options: WriteToolOptions) => {
           return 'No instruction files found in opencode.json'
         }
 
-        filePath = first.path
+        targetPath = first.path
       }
 
       const result = await appendRules({
-        filePath,
+        filePath: targetPath,
         rules: validated.data.rules,
       })
 
