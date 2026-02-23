@@ -1,5 +1,5 @@
-import { promptSchemaExample } from '../prompt-schema.ts'
-import { formatSchemaExample, parseSchemaExample } from '../rule-schema.ts'
+import { promptSchemaExample } from './prompt-schema.ts'
+import { formatSchemaExample, parseSchemaExample } from './rule-schema.ts'
 
 // Deontic logic: the 7 modal strengths and their natural language expression.
 // Defined once, composed into tool descriptions that need them.

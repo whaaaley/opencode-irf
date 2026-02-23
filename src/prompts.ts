@@ -1,10 +1,12 @@
 import type { PluginInput } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
-import { formatPrompt } from '../format-prompt.ts'
-import { sendResult } from '../opencode/notify.ts'
-import { ParsedPromptSchema } from '../prompt-schema.ts'
-import { formatValidationError, validateJson } from '../validate.ts'
+import { formatPrompt } from './format-prompt.ts'
+import { sendResult } from './opencode/notify.ts'
+import { ParsedPromptSchema } from './prompt-schema.ts'
+import { formatValidationError, validateJson } from './validate.ts'
 import { PARSE_PROMPT_PARAM } from './descriptions.ts'
+
+type Client = PluginInput['client']
 
 // parse-prompt
 
@@ -32,7 +34,7 @@ export const createParsePromptTool = (options: ParsePromptToolOptions) => {
 // format-prompt
 
 type FormatPromptToolOptions = {
-  client: PluginInput['client']
+  client: Client
   description: string
 }
 

@@ -1,13 +1,15 @@
 import type { PluginInput } from '@opencode-ai/plugin'
 import { tool } from '@opencode-ai/plugin'
-import { appendRules } from '../append.ts'
-import { buildTable, toTableRow } from '../compare.ts'
-import { sendResult } from '../opencode/notify.ts'
-import { resolveFiles } from '../resolve.ts'
-import { type FileResult, processFile } from '../rewrite.ts'
-import { FormatResponseSchema, ParseResponseSchema } from '../rule-schema.ts'
-import { formatValidationError, validateJson } from '../validate.ts'
+import { appendRules } from './append.ts'
+import { buildTable, toTableRow } from './compare.ts'
+import { sendResult } from './opencode/notify.ts'
+import { resolveFiles } from './resolve.ts'
+import { type FileResult, processFile } from './rewrite.ts'
+import { FormatResponseSchema, ParseResponseSchema } from './rule-schema.ts'
+import { formatValidationError, validateJson } from './validate.ts'
 import { FORMAT_RULES_PARAM, MODE_PARAM, PARSE_RULES_PARAM } from './descriptions.ts'
+
+type Client = PluginInput['client']
 
 // discover-rules
 
@@ -107,7 +109,7 @@ export const createFormatRulesTool = (options: FormatRulesToolOptions) => {
 // rewrite-rules / add-rules
 
 type WriteToolOptions = {
-  client: PluginInput['client']
+  client: Client
   description: string
   directory: string
   discovered: Set<string>

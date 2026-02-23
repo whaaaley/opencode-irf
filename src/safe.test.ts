@@ -23,7 +23,7 @@ describe('safe', () => {
 
     expect(result.data).toEqual(null)
     expect(result.error).toBeInstanceOf(Error)
-    expect((result.error as Error).message).toEqual('boom')
+    expect(result.error?.message).toEqual('boom')
   })
 
   it('wraps non-Error throws in an Error', () => {
@@ -33,7 +33,7 @@ describe('safe', () => {
 
     expect(result.data).toEqual(null)
     expect(result.error).toBeInstanceOf(Error)
-    expect((result.error as Error).message).toEqual('string error')
+    expect(result.error?.message).toEqual('string error')
   })
 
   it('returns null data as success', () => {
@@ -64,7 +64,7 @@ describe('safeAsync', () => {
 
     expect(result.data).toEqual(null)
     expect(result.error).toBeInstanceOf(Error)
-    expect((result.error as Error).message).toEqual('async boom')
+    expect(result.error?.message).toEqual('async boom')
   })
 
   it('wraps non-Error rejections in an Error', async () => {
@@ -72,7 +72,7 @@ describe('safeAsync', () => {
 
     expect(result.data).toEqual(null)
     expect(result.error).toBeInstanceOf(Error)
-    expect((result.error as Error).message).toEqual('string rejection')
+    expect(result.error?.message).toEqual('string rejection')
   })
 
   it('returns error when async function throws', async () => {
@@ -82,6 +82,6 @@ describe('safeAsync', () => {
 
     expect(result.data).toEqual(null)
     expect(result.error).toBeInstanceOf(Error)
-    expect((result.error as Error).message).toEqual('thrown in async')
+    expect(result.error?.message).toEqual('thrown in async')
   })
 })

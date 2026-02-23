@@ -1,13 +1,13 @@
 import type { Plugin } from '@opencode-ai/plugin'
-import { DEONTIC_STRENGTHS, MODE_FORMATS, NEGATION_SIGNALS } from './src/tools/descriptions.ts'
-import { createFormatPromptTool, createParsePromptTool } from './src/tools/prompts.ts'
+import { DEONTIC_STRENGTHS, MODE_FORMATS, NEGATION_SIGNALS } from './src/descriptions.ts'
+import { createFormatPromptTool, createParsePromptTool } from './src/prompts.ts'
 import {
   createAddTool,
   createDiscoverTool,
   createFormatRulesTool,
   createParseRulesTool,
   createRewriteTool,
-} from './src/tools/rules.ts'
+} from './src/rules.ts'
 
 const plugin: Plugin = async ({ directory, client }) => {
   const discovered = new Set<string>()

@@ -1,14 +1,6 @@
-type ResultSuccess<T> = {
-  data: T
-  error: null
-}
-
-type ResultError<E> = {
-  data: null
-  error: E
-}
-
-export type Result<T, E = string> = ResultSuccess<T> | ResultError<E>
+export type Result<T, E = string> =
+  | { data: T; error: null }
+  | { data: null; error: E }
 
 type SafeResult<T> = Result<T, Error>
 
